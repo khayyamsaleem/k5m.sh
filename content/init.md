@@ -1,11 +1,18 @@
-nuking and paving my blog to reflect my actual level of laziness + all the new tools that have come out. most of my workflows are no longer hierarchical in nature; they're more like "bag of text" + "loose files in dir" + "tags or semantic search for retrieval" vibes. going to try to build a blog that supports that!
++++
+date = "22 Jun 2025"
++++
 
-i'll build in obsidian, and publish with hugo, and add in some local sauce to ensure that images get pushed to a cdn rather than sitting in the repo.
+nuking and paving my blog to reflect my actual level of laziness + all the new tools that have come out.
 
-here's a start:
+most of my workflows are no longer hierarchical in nature; they're more like "bag of text" + "loose files in dir" + "tags or semantic search for retrieval" vibes. going to try to build a blog that supports that!
+
+i'll build in obsidian, and publish with hugo.
+
+here's what i've been using to pictorially represent myself online for a couple years:
 
 ![avatar](https://stuff.k5m.sh/profile.png)
 
+it's just a vectorized / lightly edited version of a photo that a friend of mine took of me at the museum of illusions in NYC a few years ago. Mask bc photo was taken during lockdown.
 ## goals
 just gonna write about travel + tech + loose thoughts, and lower the bar for what i publish. want the firehose in my head to be rendered online, and hopefully make it easy to query. 
 

@@ -1,0 +1,1 @@
+i'm khayyam. here are some thoughts and experiences.

@@ -1,6 +1,7 @@
 {{ define "title" }}{{ .Site.Title }}{{ end }}
 
 {{ define "main" }}
+<p>{{ .Content }}</p>
 <table id="posts" style="width:100%">
   <thead>
     <tr>
@@ -14,8 +15,14 @@
     {{/*  default build order = newest first  */}}
     {{ range .Pages }}
       <tr data-created="{{ .Date.Unix }}" data-modified="{{ .Lastmod.Unix }}">
-        <td><a href="{{ .RelPermalink }}">{{ .Title }}</a></td>
-        <td>{{ .Date.Format "02 Jan 2006" }}</td>
+        <td><a href="{{ .RelPermalink }}">
+          {{- with .Title -}}
+            {{ . | $.RenderString }}
+          {{- else -}}
+            {{ humanize .File.TranslationBaseName | lower | $.RenderString}}
+          {{- end -}}
+        </a></td>
+        <td>{{ with .Date }}{{ .Format "02 Jan 2006" }}{{ else }}{{ .Lastmod.Format "02 Jan 2006" }}{{ end }}</td>
         <td>{{ .Lastmod.Format "02 Jan 2006" }}</td>
       </tr>
     {{ end }}

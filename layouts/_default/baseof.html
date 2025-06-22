@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="stylesheet" href="{{ "css/custom.css" | relURL }}">
   </head>
   <body class="container">
     <header>
@@ -16,6 +17,18 @@
 
     <footer>
       © {{ now.Year }} · Built with <a href="https://gohugo.io/">Hugo</a> and <a href="https://obsidian.md/">Obsidian</a>
+      <footer class="mt-4">
+      <!-- Social links -->
+      <p class="socials">
+        <a href="https://github.com/khayyamsaleem"      rel="me">GitHub</a> ·
+        <a href="mailto:hello@khayyam.me"               rel="me">Email</a> ·
+        <a href="https://www.linkedin.com/in/khayyamsaleem" rel="me">LinkedIn</a> ·
+        <a href="https://bsky.app/profile/ok97.bsky.social" rel="me">Bluesky</a> ·
+        <a href="https://twitter.com/khayyamsaleem"     rel="me">Twitter</a> .
+        <a href="https://hachyderm.io/@khayyam"     rel="me">Mastodon</a>
+      </p>
+</footer>
+
     </footer>
   </body>
 </html>

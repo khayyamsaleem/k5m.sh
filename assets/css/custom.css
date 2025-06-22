@@ -1,0 +1,10 @@
+.socials {
+  font-size: 0.9rem;
+  word-spacing: 0.15rem;
+}
+.socials a {
+  text-decoration: none;
+}
+.socials a:hover {
+  text-decoration: underline;
+}

@@ -3,3 +3,9 @@ languageCode: 'en-us'
 title: 'k5m.sh'
 
 enableGitInfo: true
+enableEmoji: true
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true

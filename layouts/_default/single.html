@@ -1,9 +1,21 @@
-{{ define "title" }}{{ .Title }} · {{ .Site.Title }}{{ end }}
+{{ define "title" }}{{- with .Title -}}
+  {{ . | lower | $.RenderString }}
+{{- else -}}
+  {{ humanize .File.TranslationBaseName | lower | $.RenderString }}
+{{- end -}}{{ end }}
 
 {{ define "main" }}
 <article>
-  <h2>{{ .Title }}</h2>
-  <small>{{ .Date.Format "02 Jan 2006" }}</small>
+  <h1>
+  {{- with .Title -}}
+  {{ . | lower | $.RenderString }}
+{{- else -}}
+  {{ humanize .File.TranslationBaseName | lower | $.RenderString }}
+{{- end -}}
+  </h1>
+  <small><em>{{ .Date.Format "02 Jan 2006" }}</em></small>
+  <br>
+  <br>
   {{ .Content }}
 </article>
 {{ end }}
