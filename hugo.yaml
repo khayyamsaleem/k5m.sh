@@ -1,0 +1,5 @@
+baseURL: 'https://k5m.sh/'
+languageCode: 'en-us'
+title: 'k5m.sh'
+
+enableGitInfo: true

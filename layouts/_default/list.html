@@ -1,0 +1,50 @@
+{{ define "title" }}{{ .Site.Title }}{{ end }}
+
+{{ define "main" }}
+<table id="posts" style="width:100%">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th data-sort-key="created" style="cursor:pointer;">Created ▲▼</th>
+      <th data-sort-key="modified" style="cursor:pointer;">Modified ▲▼</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {{/*  default build order = newest first  */}}
+    {{ range .Pages }}
+      <tr data-created="{{ .Date.Unix }}" data-modified="{{ .Lastmod.Unix }}">
+        <td><a href="{{ .RelPermalink }}">{{ .Title }}</a></td>
+        <td>{{ .Date.Format "02 Jan 2006" }}</td>
+        <td>{{ .Lastmod.Format "02 Jan 2006" }}</td>
+      </tr>
+    {{ end }}
+  </tbody>
+</table>
+
+<script>
+(() => {
+  const table = document.getElementById('posts');
+  let currentKey = null, asc = false;   // track sort state
+
+  function sortRows(key) {
+    const rows = Array.from(table.tBodies[0].rows);
+    rows.sort((a, b) => {
+      const av = +a.dataset[key];
+      const bv = +b.dataset[key];
+      return asc ? av - bv : bv - av;
+    });
+    rows.forEach(r => table.tBodies[0].appendChild(r));
+  }
+
+  table.tHead.addEventListener('click', e => {
+    const th = e.target.closest('th[data-sort-key]');
+    if (!th) return;
+    const key = th.dataset.sortKey;
+    asc = currentKey === key ? !asc : false;  // toggle on repeat click
+    currentKey = key;
+    sortRows(key);
+  });
+})();
+</script>
+{{ end }}
