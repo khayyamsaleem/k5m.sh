@@ -1,8 +1,28 @@
 // Light/Dark mode theme toggle with localStorage persistence
 
 (function() {
+  // Safe localStorage wrapper with fallback
+  const storage = {
+    get: function(key, defaultValue) {
+      try {
+        return localStorage.getItem(key) || defaultValue;
+      } catch (e) {
+        // localStorage disabled or blocked (privacy mode, etc)
+        return defaultValue;
+      }
+    },
+    set: function(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (e) {
+        // Silently fail if localStorage unavailable
+        // Theme will reset on page reload but toggle still works
+      }
+    }
+  };
+
   // Check for saved theme preference or default to light mode
-  const savedTheme = localStorage.getItem('theme') || 'light';
+  const savedTheme = storage.get('theme', 'light');
   
   // Apply theme on load
   if (savedTheme === 'dark') {
@@ -33,7 +53,7 @@
       toggleButton.title = 'Switch to dark mode';
     }
     
-    // Save preference
-    localStorage.setItem('theme', newTheme);
+    // Save preference (gracefully fails if localStorage unavailable)
+    storage.set('theme', newTheme);
   });
 })();
