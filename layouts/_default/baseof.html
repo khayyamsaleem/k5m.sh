@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
-    <link rel="stylesheet" href="{{ "css/custom.css" | relURL }}">
+    {{ $customCSS := resources.Get "css/custom.css" | resources.Fingerprint }}
+    <link rel="stylesheet" href="{{ $customCSS.RelPermalink }}">
   </head>
   <body class="container">
     <header>
@@ -32,6 +33,7 @@
     </footer>
 
     <!-- Theme toggle script -->
-    <script src="{{ "js/theme-toggle.js" | relURL }}"></script>
+    {{ $themeToggle := resources.Get "js/theme-toggle.js" | resources.Fingerprint }}
+    <script src="{{ $themeToggle.RelPermalink }}"></script>
   </body>
 </html>
