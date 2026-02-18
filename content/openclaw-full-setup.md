@@ -1,6 +1,6 @@
 +++
 date = "18 Feb 2026"
-title = "teaching my computer to remember things for me 🤖"
+title = "openclaw"
 +++
 
 i've been procrastinating on a lot of tedious computer stuff for months. you know the vibe -- things that take 5 minutes but require 15 minutes of context-loading to even start? like updating configs, merging PRs, rotating API keys, remembering to do literally anything on a schedule.
