@@ -1,10 +1,87 @@
+/* Light/Dark Mode Support for k5m.sh */
+
+:root {
+  /* Light mode colors (default) */
+  --primary: #0066cc;
+  --background: #ffffff;
+  --surface: #f8f9fa;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border: #e0e0e0;
+  --link: #0066cc;
+  --link-hover: #0052a3;
+}
+
+[data-theme="dark"] {
+  /* Dark mode colors (Pico CSS default style) */
+  --primary: #4d9cff;
+  --background: #11191f;
+  --surface: #1a2632;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --border: #2d3e50;
+  --link: #4d9cff;
+  --link-hover: #80b3ff;
+}
+
+/* Apply theme colors */
+body {
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+a {
+  color: var(--link);
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+table {
+  border-color: var(--border);
+}
+
+th, td {
+  border-color: var(--border);
+}
+
+/* Theme toggle button */
+#theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 1.2rem;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+#theme-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Smooth transitions */
+body, a, table, th, td, #theme-toggle {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Social links styling */
 .socials {
   font-size: 0.9rem;
   word-spacing: 0.15rem;
 }
+
 .socials a {
   text-decoration: none;
 }
+
 .socials a:hover {
   text-decoration: underline;
 }
