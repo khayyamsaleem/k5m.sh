@@ -33,6 +33,7 @@
   const toggleButton = document.createElement('button');
   toggleButton.id = 'theme-toggle';
   toggleButton.setAttribute('aria-label', 'Toggle theme');
+  toggleButton.setAttribute('aria-pressed', savedTheme === 'dark' ? 'true' : 'false');
   toggleButton.title = savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
   toggleButton.innerHTML = savedTheme === 'dark' ? '☀️' : '🌙';
   document.body.appendChild(toggleButton);
@@ -47,10 +48,12 @@
       document.documentElement.setAttribute('data-theme', 'dark');
       toggleButton.innerHTML = '☀️';
       toggleButton.title = 'Switch to light mode';
+      toggleButton.setAttribute('aria-pressed', 'true');
     } else {
       document.documentElement.removeAttribute('data-theme');
       toggleButton.innerHTML = '🌙';
       toggleButton.title = 'Switch to dark mode';
+      toggleButton.setAttribute('aria-pressed', 'false');
     }
     
     // Save preference (gracefully fails if localStorage unavailable)
