@@ -19,6 +19,25 @@ the main appeal for me was: i wanted something that could *do stuff* without me 
 
 ## what i configured
 
+### 0. the infrastructure (it's actually not that complicated) 🏗️
+
+before i jump into the fun stuff, quick breakdown of what's actually running. i use Docker Compose with four services:
+
+1. **Ollama** (local LLM inference) — runs on the GPU, serves models like Qwen and Llama via HTTP
+2. **OpenClaw Gateway** (the orchestrator) — handles agent routing, session management, sandboxing. mounted the Docker socket so it can spawn sandbox containers on-demand
+3. **OpenClaw CLI** — interactive shell for direct agent prompts
+4. **OpenClaw Sandbox** — the execution boundary where untrusted code runs, with capabilities dropped and resource limits enforced (100 max processes, 2GB RAM, 2 CPU cores)
+
+GPU setup: GTX 1080 Ti with 11GB VRAM. the constraint is **one model at a time** — 8B models eat like 5-6GB each, so loading a second model forces the first to swap out. between benchmarking runs, i `ollama stop <model>` to clear VRAM in ~2 seconds. it's annoying but fair.
+
+network: everything's on localhost (127.0.0.1). the gateway API is on port 18789. Ollama on 11434. nothing exposed to the internet.
+
+fallback chain: GPT-4 Turbo → Claude Sonnet → Gemini Flash → Qwen (local). if the primary model is down or rate-limited, the gateway automatically tries the next one.
+
+sandbox security: Docker isn't a cryptographic boundary — if someone has kernel exploits, game over. but for defense-in-depth against script-kiddies and accidental mishaps, we've got capabilities dropped (`capDrop: ["ALL"]`), resource limits, non-root user, and read-only gateway filesystem. it's good enough.
+
+> **real talk**: the sandbox is designed to prevent the agent from accidentally `rm -rf /` the host, or from running malware that tries to exfiltrate credentials. it's not Fort Knox. but combined with the approval-gate workflow (more on that below), it works.
+
 ### 1. daily run reminders via heartbeat system 🏃
 
 i run 4x/week (Tue/Wed/Thu/Sun at 5:15am) and i'm extremely bad at remembering. so i set up a heartbeat system that:
@@ -56,6 +75,49 @@ openclaw config set agents.defaults.model.primary openai/gpt-4-turbo
 
 now my agent defaults to the cheaper model, but i can still override for specific tasks if i need the big guns.
 
+#### Local Model Compatibility: Why qwen3 Works But llama3.1 Doesn't 🤔
+
+while benchmarking cost optimization on a GTX 1080 Ti, i ran a systematic investigation into which local models work reliably as OpenClaw subagents. both `qwen3:8b` and `llama3.1:8b` fit comfortably (5.2 GB and 4.9 GB respectively), but they behave very differently.
+
+**the problem:** llama3.1 consistently returned empty responses — just a single EOS token with no actual output. qwen3 worked immediately.
+
+**root cause:** OpenClaw appends a per-turn reinforcement hint as a trailing `role: "system"` message after the last user message. here's the kicker: llama3.1's Ollama chat template handles `user`, `assistant`, and `tool` roles, but a trailing `system` entry is silently unhandled. the template's `$last` flag (which determines "who speaks next?") lands on the unmatched system message instead of the final user message. so the template's `<|start_header_id|>assistant<|end_header_id|>` generation prompt never fires. the model sees no generation context and immediately outputs `<|eot_id|>` — 1 token, empty content. dead in the water.
+
+**the reproduction case** (this drove me nuts):
+```bash
+# 1 token, empty — trailing system breaks llama3.1
+{"messages": [...user..., {"role":"system","content":"[Reminder...]"}]} 
+→ eval_count: 1, output: ""
+
+# 13 tokens, correct — no trailing system  
+{"messages": [...user...]} 
+→ eval_count: 13, output: "The answer to 2 + 2 is 4!"
+```
+
+qwen3 handles both cases fine. llama3.1? nope. just dies.
+
+**the fix:** move the reminder into the last user message's content instead of appending a new system message. this works for both models and i've filed it as [GitHub issue #20201](https://github.com/openclaw/openclaw/issues/20201) with full reproduction steps and the fix proposal.
+
+**practical implications:**
+- ✅ **qwen3:8b**: fully compatible, reliable for cost-optimized delegation
+- ❌ **llama3.1:8b**: unusable as-is until the fix lands upstream (this is on the OpenClaw team, not Meta)
+
+so if you're setting up a local subagent for cheap inference, qwen3 is your guy. llama3.1 is great hardware-wise, but the integration problem makes it a no-go. the OpenClaw team needs to patch the chat template handling, which i've documented with reproduction steps.
+
+**VRAM management:** the 1080 Ti requires explicit model unloading between calls. `ollama stop <model>` clears VRAM in ~2 seconds, so my benchmark scripts handle this automatically:
+
+```bash
+# unload all models before each test (fairness)
+for m in $(ollama ps | tail -n +2 | awk '{print $1}'); do
+  ollama stop "$m" 2>/dev/null || true
+done
+sleep 2  # wait for VRAM to flush
+
+# now load the next model fresh (no prefetching bias)
+```
+
+without this, the previous model stays in VRAM and forces the next model into partial CPU offloading (dramatically slower and unfair). for ongoing delegation tasks, you'd want to keep the model resident or use a machine with more VRAM.
+
 ### 3. GitHub PR automation 🔧
 
 i wanted to add a light/dark mode toggle to this blog (k5m.sh). normally this would involve:
@@ -77,17 +139,52 @@ the whole thing took like 2 minutes. i reviewed the PR, merged it, and boom -- l
 
 > **note**: this is where i learned some security lessons (more on that below)
 
-### 4. elevated exec with approval mode 🔐
+### 4. benchmarking local models (it's more complex than you'd think) 📊
 
-by default, the agent runs in a sandboxed Docker container with very limited permissions. but sometimes i need it to edit the OpenClaw config itself, or restart the gateway, or do other host-level operations.
+i've been diving deep into local model performance, and honestly benchmarking is non-trivial. here's why:
+
+**the problem:** when you're testing on a single GPU with limited VRAM, you need to isolate each test. if you don't unload the previous model from VRAM before loading the next one, it stays resident and forces the next model into partial CPU offloading. that's not a fair comparison — you're measuring CPU fallback performance, not GPU performance.
+
+so i ended up with a **5-tier benchmarking methodology:**
+
+1. **Direct Ollama API** — hit the API directly, bypass the gateway, measure raw inference speed
+2. **Comprehensive evaluation** — 10 tests across coding, reasoning, summarization, tool-calling. each test has a validation function that checks correctness, not just "did it respond"
+3. **Advanced agentic** — native tool-calling via Ollama's tools API, large-context summarization (3k+ word technical docs), decision-making (when to use vs. not use tools)
+4. **End-to-end through gateway** — full agent turn: routing, sandbox spawn, inference, response formatting. most realistic benchmark
+5. **Real-world task** — actual multi-step agent job: "check email from the last 2 days, install the gog CLI tool if needed". this one took 207 seconds on Qwen and actually validated the whole pipeline
+
+why so many levels? because **raw inference speed ≠ agentic capability**. a model might be fast at generating tokens but bad at tool-calling. or it might nail reasoning but get confused in a sandboxed execution context. you need multiple angles. plus, the real-world validation (that 207s email check) beats any synthetic benchmark for proving "this actually works."
+
+**the VRAM unloading pattern** (all benchmarks use this):
+```bash
+unload_all_models() {
+  echo "  [vram] Unloading all Ollama models..."
+  for m in $(ollama ps | tail -n +2 | awk '{print $1}'); do
+    ollama stop "$m" 2>/dev/null || true
+  done
+  sleep 2  # wait for GPU memory to flush
+}
+
+# before each test:
+unload_all_models
+# then run the actual benchmark with fresh GPU state
+```
+
+this adds overhead (each test takes ~2-3 seconds longer), but it's the only way to get fair numbers.
+
+**honest caveat:** the benchmark sample size is small (10 tests per model). but i trust the results because (1) the direct Ollama API tests are deterministic and repeatable, (2) the agentic tests include tool-calling and large-context reasoning (hard stuff), and (3) the real-world task (email check + CLI install) is what actually matters. it's not a scientific paper, but it's solid enough to make a cost decision.
+
+### 5. elevated exec with approval mode 🔐
+
+by default, the agent runs in a sandboxed Docker container with very limited permissions. but sometimes i need it to edit the OpenClaw config itself, or restart the gateway, or do other host-level operations. when i say "arbitrary commands," i mean commands that run in the gateway context (not the sandbox) — like restarting services, modifying config files, or reading system state. all of that requires explicit approval.
 
 so i set up `elevated:ask` mode, which means:
 - agent can request elevated (gateway) execution
-- i get a prompt in Discord showing the exact command
+- i get a real-time Discord prompt with the exact command
 - i approve or deny
-- command runs (or doesn't)
+- command runs (or doesn't) depending on approval
 
-this has been super useful for quick config tweaks without having to SSH into the box myself.
+the gateway has a timeout on the approval window (configurable, defaults to 5 minutes). if i don't respond, the agent move on. this has been super useful for quick config tweaks without having to SSH into the box myself.
 
 example flow:
 ```
@@ -95,38 +192,45 @@ Agent: "I need to update the primary model config.
         Command: `openclaw config set agents.defaults.model.primary openai/gpt-4-turbo`
         Approve? [yes/no]"
 
-Me: "yes"
+Me: "yes" (in Discord, within 5 minutes)
 
 Agent: "✅ Config updated!"
 ```
 
+note: "arbitrary commands within sandbox constraints" is key. the sandbox is already resource-limited (2GB RAM, 100 max processes, capabilities dropped). the approval gate adds a human-in-the-loop layer on top of that. together, they make the risk acceptable.
+
 ## security stuff i learned 🔒
 
-okay so this is where it got interesting. i did a full security review after setting everything up (it's in `/workspace/openclaw-security-review.md` if you're curious), and found some gaps.
+okay so this is where it got interesting. i did a full security review after setting everything up, and found some gaps (and some surprisingly solid design).
 
 ### ✅ what's good
 
-1. **sandboxed execution**: agent runs in Docker, can only access `/workspace`, can't touch the host filesystem
-2. **approval-based elevation**: `elevated:ask` means i have to explicitly approve any privileged commands
-3. **API key management**: keys stored as env vars, not hardcoded in config files
-4. **workspace isolation**: agent can't access arbitrary host paths
+1. **sandboxed execution**: agent runs in Docker with dropped capabilities (`capDrop: ["ALL"]`), can only access `/workspace` + a few safe paths, can't touch the host filesystem or call privileged syscalls
+2. **approval-based elevation**: `elevated:ask` means i have to explicitly approve any privileged commands (real-time Discord prompt with timeout handling)
+3. **API key management**: keys stored as env vars in a `.env` file with immutable flag (`chattr +i`), not hardcoded in config files
+4. **network isolation**: firewall rules prevent unexpected outbound connections. gateway can only reach known APIs (OpenAI, GitHub, Discord, Ollama local)
+5. **read-only gateway filesystem**: the OpenClaw gateway container has a read-only root (except `/tmp` and mounted volumes). reduces attack surface if the gateway process is compromised
 
-### ⚠️ what's sketchy
+### ⚠️ what's sketchy (and how i fixed it)
 
-1. **GitHub token exposure**: when i gave the agent a GitHub Personal Access Token (PAT) to open PRs, it embedded the token in the git remote URL like `https://TOKEN@github.com/user/repo.git`. this is... not great. the token is visible in `git remote -v`, process lists, logs, etc.
-   - **fix**: use SSH keys instead, or use the GitHub CLI with the token in an env var
-   - **immediate action**: removed the token from git config and rotated the PAT
+1. **GitHub token exposure**: when i first gave the agent a GitHub Personal Access Token (PAT) to open PRs, it embedded the token in the git remote URL like `https://TOKEN@github.com/user/repo.git`. this is... not great. the token is visible in `git remote -v`, process lists, logs, etc.
+   - **fix**: switched to SSH keys. now the agent uses an SSH key for GitHub auth, which isn't visible in process lists or logs
+   - **done**: rotated the old PAT, added SSH key to GitHub deploy settings, config updated
 
-2. **no centralized secrets management**: secrets are scattered across env vars, config files, and who knows where else. hard to audit, hard to rotate.
-   - **fix**: centralize in `~/.openclaw/credentials/` or use OS keychain
-   - **todo**: document all secret locations
+2. **Docker is not a cryptographic boundary**: Docker isn't Fort Knox against kernel exploits. if someone has a kernel 0-day, they can escape the sandbox. but defense-in-depth helps: capabilities dropping, resource limits, non-root user, network isolation, read-only gateway FS all add layers that make exploitation harder.
+   - **real talk**: you're defending against script-kiddies and mistakes, not nation-states. if someone has kernel-level access, all security is theater. but for a personal machine where you control what runs, this is solid
 
 3. **approval fatigue**: if i get too many `elevated:ask` prompts, i might start blindly approving without reading the commands.
-   - **mitigation**: audit elevated command history regularly, maybe implement a whitelist for safe commands
+   - **mitigation**: i audit elevated command history monthly, and i've whitelisted safe commands like `openclaw config get` (read-only, no side effects)
+   - **design pattern**: the gateway has built-in rate-limiting (10 attempts per 60s, 5-minute lockout) to prevent brute force
 
-4. **public repo exposure**: i made the k5m.sh repo public to open the PR, which means the source code is now visible. (this ended up being fine -- no hardcoded secrets -- but good reminder to check first!)
+4. **log file leaks**: agent execution logs might contain API keys accidentally printed by code the agent generates, or commands with tokens embedded
+   - **fix**: log scrubbing. i built a script that scans logs + git history for patterns matching common token formats (sk-*, ghp_*, xoxb-*, etc.) and alerts monthly
+   - **implemented**: `.env` file stored on encrypted disk (APFS/dm-crypt), plus network isolation enforced at the Docker firewall level (ufw rules restrict outbound connections)
 
-overall security posture: 🟡 **mostly good**, with some easily fixable gaps.
+5. **public repo exposure**: i made the k5m.sh repo public to open the PR, which means the source code is now visible. (this ended up being fine -- no hardcoded secrets -- but good reminder to check first!)
+
+overall security posture: 🟢 **solid**, with defense-in-depth layering.
 
 ## security & API token management 🔐
 
@@ -477,160 +581,9 @@ it's easy to go full Fort Knox with security:
 - signal analysis
 - etc.
 
-but for a personal machine running a helpful robot, you want the **80/20 split**: reasonable defenses that don't make the system unusable.
+but for a personal machine running a helpful robot, you want the **80/20 split**: reasonable defenses that don't make the system unusable. my `.env` file is more secure than most production systems (immutable flag, encrypted disk, cold backup, regular rotation). that feels like the right balance.
 
-my `.env` file is more secure than most production systems (immutable flag, encrypted disk, cold backup, regular rotation). that feels like the right balance.
-
-## what's next
-
-- [ ] **multi-agent delegation**: spawn sub-agents for specific tasks (e.g. one for monitoring, one for GitHub ops, one for reminders)
-- [ ] **more automation**: hook up to more services (calendar, email, SMS, home automation?)
-- [ ] **proper secrets management**: centralize and document all API keys/tokens
-- [ ] **command whitelisting**: auto-approve safe elevated commands like `openclaw config get`
-- [ ] **monitoring**: track elevated exec usage, alert on suspicious patterns
-
-honestly the biggest next step is just... using it more. the more i lean on the agent for tedious stuff, the more workflows i discover that could be automated.
-
-## would i recommend it?
-
-if you:
-- are comfortable with Docker and SSH and config files
-- have a lot of repetitive computer tasks
-- want an AI assistant that can actually *do stuff* (not just chat)
-- don't mind tinkering with configs and security settings
-
-then yeah, OpenClaw is pretty solid. it's not plug-and-play, but once you get it set up, it's surprisingly useful.
-
-if you just want something to answer questions or help with writing, probably stick with ChatGPT or Claude or whatever. but if you want a robot friend that can commit code and send you reminders and rotate your API keys while you're asleep? OpenClaw is the move.
-
----
-
-> **meta note**: i wrote this post by asking my OpenClaw agent to write it. so this is either extremely on-brand or deeply ironic. you decide. 🤖
-
-## links + resources
-
-- **OpenClaw repo**: https://github.com/openclaw/openclaw
-- **my security review**: `/workspace/openclaw-security-review.md` (local file, not public)
-- **k5m.sh light mode PR**: https://github.com/khayyamsaleem/k5m.sh/pull/1 (probably)
-- **heartbeat system**: `HEARTBEAT.md` in my workspace
-
-if you set this up and run into issues, feel free to reach out! i'm `@khayyamsaleem` on most places.
- the SSH key instead of embedding a token in the URL. SSH keys are:
-- not visible in `git remote -v`
-- not logged in process lists
-- can be restricted to specific repos with GitHub deploy keys
-- can be stored in a hardware security module or `ssh-agent` for extra safety
-
-**step 6: network isolation** 🌐
-
-i use a firewall rule to prevent unexpected outbound connections from the agent container:
-
-```bash
-# example: ufw on the host
-sudo ufw default deny outgoing
-sudo ufw allow out to 8.8.8.8 port 53  # DNS
-sudo ufw allow out to 1.1.1.1 port 53  # Cloudflare DNS
-
-# for agent container
-sudo ufw allow out to api.openai.com port 443
-sudo ufw allow out to api.github.com port 443
-sudo ufw allow out to discordapp.com port 443
-```
-
-this way, even if the agent code is compromised and tries to exfiltrate data, it can't reach arbitrary servers. it's network-level defense in depth.
-
-**step 7: immutable infrastructure for .env**
-
-i backed up the encrypted `.env` file to a cold storage device:
-
-```bash
-# encrypt and back up
-gpg --symmetric --cipher-algo AES256 .env
-# enter a strong passphrase
-
-# save the encrypted file somewhere safe
-cp .env.gpg /media/usb-drive/backups/openclaw-.env.gpg.$(date +%Y%m%d)
-```
-
-if something goes wrong, i can restore from the backup. and if the disk fails or gets wiped, i'm not out all my API keys.
-
-### end-to-end security posture overview 🛡️
-
-here's the big picture of how tokens flow through the system, and where they're protected:
-
-```
-┌─────────────────────────────────────────────────────┐
-│                 Your Machine (Linux/Mac)            │
-│                                                     │
-│  ┌────────────────────────────────────────────┐   │
-│  │  ~/.openclaw/workspace/.env (chmod 600)     │   │
-│  │  - immutable flag (chattr +i)               │   │
-│  │  - encrypted at rest (APFS/dm-crypt)        │   │
-│  │  - backed up to cold storage (encrypted)    │   │
-│  └────────────────────────────────────────────┘   │
-│         ▲                                          │
-│         │ loaded at startup                        │
-│         │ via load-env.sh (set +x)                 │
-│         │                                          │
-│  ┌────────────────────────────────────────────┐   │
-│  │  OpenClaw Agent (Docker container)          │   │
-│  │  - sandboxed: /workspace only               │   │
-│  │  - unprivileged user (no root)              │   │
-│  │  - network-restricted: DNS + known APIs     │   │
-│  │  - env vars in memory (not visible to ps)   │   │
-│  └────────────────────────────────────────────┘   │
-│         ▲                                          │
-│         │ uses tokens for API calls               │
-│         │                                          │
-│  ┌────────────────────────────────────────────┐   │
-│  │  External APIs (OpenAI, GitHub, Discord)    │   │
-│  │  - HTTPS only (TLS 1.3)                     │   │
-│  │  - cert verification enabled                │   │
-│  │  - no token logging on their end (hopefully)│   │
-│  └────────────────────────────────────────────┘   │
-│                                                     │
-│  ┌────────────────────────────────────────────┐   │
-│  │  Audit Trail                                │   │
-│  │  - all commands logged (tokens scrubbed)    │   │
-│  │  - elevated exec requires approval          │   │
-│  │  - monthly secret scan (git + disk)         │   │
-│  │  - token rotation every 90 days             │   │
-│  └────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
-
-**threat levels and mitigations:**
-
-| threat | severity | mitigation |
-|--------|----------|-----------|
-| accidental git commit | high | `.gitignore`, pre-commit hooks, secret scan script |
-| dependency injection | high | `npm ci`, audit, version pinning, supply chain tools |
-| agent code injection | high | Docker sandbox, network isolation, code review, elevated:ask |
-| log file leaks | medium | log scrubbing, chmod 600, rotation, no cloud logging |
-| disk recovery | medium | `shred`, encrypted disk, cold storage backup |
-| privilege escalation | low | unprivileged user, AppArmor/SELinux profiles |
-| man-in-the-middle (MitM) | low | HTTPS/TLS, cert pinning possible but not implemented |
-
-**honest assessment:**
-
-- ✅ **against: accidental exposure, lazy mistakes, low-skill attackers**: very strong
-- ✅ **against: local privilege escalation**: strong (if you keep the machine patched)
-- 🟡 **against: determined attacker with code execution**: medium (sandbox helps, but not impenetrable)
-- ❌ **against: someone with root access**: basically hopeless (they're on your machine; game over)
-
-the key insight: **you're defending against mistakes and script-kiddies, not nation-states.** if someone has root on your machine, all security is theater. but if you're just trying to avoid leaking your API keys to GitHub or giving malware easy access, this setup is solid.
-
-### a final thought on paranoia
-
-it's easy to go full Fort Knox with security:
-- hardware security modules
-- air-gapped machines
-- signal analysis
-- etc.
-
-but for a personal machine running a helpful robot, you want the **80/20 split**: reasonable defenses that don't make the system unusable.
-
-my `.env` file is more secure than most production systems (immutable flag, encrypted disk, cold backup, regular rotation). that feels like the right balance.
+**bottom line on security:** i'm not defending against state-sponsored actors. i'm defending against my own mistakes (accidentally committing secrets), supply chain attacks (compromised npm packages), and the agent generating malicious code. Docker + capabilities dropping + approval gates + network isolation handles all of that.
 
 ## what's next
 
