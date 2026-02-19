@@ -79,6 +79,73 @@ A robust DIY sloplet enforces several security boundaries:
 
 At low task volumes, the DIY approach is substantially cheaper than managed services. A $6–10 per month Droplet can reliably host your entire agent infrastructure and spawn dozens of concurrent ephemeral containers. You are paying for persistent compute and network bandwidth, not per-execution fees. For a personal AI assistant or small team workload, this cost envelope is compelling.
 
+## Sandbox Architectures: Strengths and Limitations
+
+While the DIY sloplet approach with Docker is effective for many use cases, it's important to understand that different sandbox architectures have distinct trade-offs. The choice of sandbox type—containers, lightweight VMs, full VMs, or platform-managed services—depends heavily on your isolation requirements, threat model, and operational constraints.
+
+### Why Docker Containers Alone Are Insufficient
+
+Docker containers provide process-level isolation using Linux namespaces, cgroups, and seccomp. They are lightweight, fast to spawn, and excellent for resource-constrained environments. However, containers share the kernel with the host and sibling containers. This creates several risk vectors:
+
+1. **Kernel exploits:** A vulnerability in the Linux kernel affects all containers on the same host. A sophisticated attacker can escape a container via a kernel bug.
+2. **Shared kernel resources:** Memory limits and CPU shares can be exceeded or exploited by misbehaving processes; truly strict isolation requires additional OS-level controls.
+3. **Privilege escalation paths:** Even with capabilities dropped and no `sudo` access, a container with access to the Docker socket or other privileged resources can escape and compromise the host.
+4. **Noisy neighbor problems:** In high-concurrency environments, one container's resource consumption can starve other containers of CPU, memory, or I/O.
+
+For personal use or small-scale agent deployments, these risks are often acceptable. The threat model is: "What if my agent's code has a bug or the LLM hallucinated a destructive command?" In that case, container isolation is sufficient. But if the threat model includes: "What if a malicious actor has crafted a container image specifically to break out?" then containers alone are insufficient.
+
+This is why serious platforms like E2B use kernel-level isolation (via KVM or Firecracker microVMs), and why enterprises often mandate full virtual machine isolation for untrusted code execution.
+
+### Lightweight VMs: The Firecracker Model
+
+Firecracker, developed by AWS, is a lightweight hypervisor that boots minimal Linux VMs (called microVMs) in under 100 milliseconds with minimal memory overhead. Firecracker provides **true hardware-level isolation**—the hypervisor enforces boundaries that even a kernel exploit cannot breach. Each microVM has its own kernel, so a kernel vulnerability in one VM does not affect others.
+
+E2B and sprites.dev both use Firecracker or similar hypervisors. The trade-off is modest: startup time increases from milliseconds (containers) to ~100ms (microVMs), and per-VM memory overhead is ~20-50 MB. The security win—genuine hardware-level isolation—justifies this overhead for production systems.
+
+### Full Virtual Machines: Complete Isolation
+
+Full VMs (running on QEMU, KVM, or hypervisors like Hyper-V) provide maximum isolation but at significant cost: boot times of several seconds and memory overhead per VM. exe.dev's persistent VMs are full VMs, as are most traditional cloud instances. Full VMs are overkill for ephemeral sandbox tasks (why boot a 2GB VM for a 100ms task?) but excellent for persistent agent environments where the overhead is amortized.
+
+### Platform-Managed Services: DigitalOcean App Platform as a Sandbox
+
+The DigitalOcean App Platform (a platform-as-a-service offering similar to Heroku) can technically serve as a sandbox for agent code execution, though it was not originally designed for this purpose. Here's how it could work and where its limitations lie:
+
+**How it could be used:**
+
+1. **Deploy a listener service:** Create a long-running service on App Platform that accepts execution requests via HTTP.
+2. **Spawn child processes:** The listener spawns child processes to execute agent code, optionally in isolated Docker containers.
+3. **Return results:** Results are streamed back to the caller.
+
+**Key advantages:**
+
+- **Managed infrastructure:** No need to manage base VMs, patches, or orchestration; DigitalOcean handles that.
+- **Automatic scaling:** App Platform auto-scales based on load, reducing cold-start concerns for bursty workloads.
+- **Built-in logging and monitoring:** Integrated observability without additional setup.
+- **Simple deployment:** Git-based deployments via `doctl` or web UI.
+
+**Critical limitations:**
+
+1. **Ephemeral filesystem:** App Platform containers have read-only or ephemeral filesystems. Persistent agent state (workspace files, session logs) must be stored externally (e.g., DigitalOcean Spaces, a managed database). This adds complexity and latency compared to local disk access on a persistent VM.
+2. **Billing misalignment:** App Platform charges a monthly base fee per service plus per-unit compute usage. For low-frequency agent tasks, this is expensive compared to a $6/month Droplet. For high-frequency tasks, it may be cheaper, but the pricing model is opaque.
+3. **Limited customization:** You cannot install arbitrary system packages (e.g., `ffmpeg`, `graphviz`) without building a custom Docker image; base images are limited and upgrades are managed by DigitalOcean.
+4. **Cold starts and function duration limits:** Some App Platform services have strict execution time limits (typically 5–30 minutes per request). Long-running agent tasks may timeout.
+5. **No GPU support:** As of early 2026, App Platform does not offer GPU acceleration, making it unsuitable for agents that need to run computationally intensive tasks (code compilation, ML inference, etc.).
+6. **Hidden costs:** Egress bandwidth, external storage access, and database queries all add up. A Droplet with local storage avoids these surprise costs.
+
+**When App Platform *could* be appropriate:**
+
+- Lightweight, stateless HTTP-based agent tasks that return results quickly.
+- Tasks that do not require persistent workspace state or rapid disk I/O.
+- Scenarios where you want a fully managed, zero-ops experience and cost is secondary.
+
+**When App Platform is inappropriate:**
+
+- Any agent that maintains workspace files, session logs, or build artifacts on disk.
+- Agents that spawn many concurrent child processes (the overhead and resource constraints make this expensive).
+- Agents that require GPU, specialized system tools, or fine-grained resource control.
+
+For most personal AI assistant use cases, the DIY Droplet + Docker approach offers better cost, control, and performance than App Platform. App Platform shines for traditional microservices; it is a poor fit for sandbox-based agent execution.
+
 ## How Agents Use Sandboxes
 
 Understanding where sandboxes fit into an agentic system clarifies their necessity:
