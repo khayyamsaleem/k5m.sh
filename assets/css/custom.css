@@ -3,7 +3,7 @@
 :root {
   /* Light mode colors (default for non-dark preference) */
   --primary: #0066cc;
-  --background: #ffffff;
+  --background: #f5f5f5;
   --surface: #f8f9fa;
   --text-primary: #1a1a1a;
   --text-secondary: #666666;
@@ -31,7 +31,7 @@
 [data-theme="light"] {
   /* Explicit light mode override */
   --primary: #0066cc;
-  --background: #ffffff;
+  --background: #f5f5f5;
   --surface: #f8f9fa;
   --text-primary: #1a1a1a;
   --text-secondary: #666666;
