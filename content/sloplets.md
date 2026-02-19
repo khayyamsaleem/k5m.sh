@@ -1,3 +1,7 @@
++++
+date = "19 Feb 2026"
+title = "sloplets"
++++
 # Sloplets: Your AI Deserves Its Own Disaster Zone
 
 ## The Problem: Code Execution on Your Actual Machine

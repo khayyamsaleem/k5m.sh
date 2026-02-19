@@ -1,8 +1,8 @@
----
-title: "teaching my computer to nag me 🤖"
-date: 2026-02-20
-draft: false
----
++++
+date = "2026-02-19T12:00:00"
+title = "teaching my computer to nag me"
+draft = false
++++
 
 I've been building something genuinely useful with [OpenClaw](https://openclaw.ai) — a self-hosted AI assistant that actually *works*, instead of just yelling at ChatGPT in a browser tab and hoping for the best.
 

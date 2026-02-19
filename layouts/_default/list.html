@@ -13,7 +13,7 @@
 
   <tbody>
     {{/*  default build order = newest first  */}}
-    {{ range .Pages }}
+    {{ range .Site.RegularPages }}
       <tr data-created="{{ .Date.Unix }}" data-modified="{{ .Lastmod.Unix }}">
         <td><a href="{{ .RelPermalink }}">
           {{- with .Title -}}
