@@ -1,6 +1,6 @@
 ---
 title: "teaching my computer to nag me 🤖"
-date: 2026-02-18
+date: 2026-02-20
 draft: false
 ---
 
