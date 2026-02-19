@@ -1,5 +1,6 @@
 ---
 title: "teaching my computer to nag me 🤖"
+url: "/openclaw-setup/"
 date: 2026-02-20
 draft: false
 ---
