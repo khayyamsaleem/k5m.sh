@@ -4,70 +4,70 @@ date: 2026-02-18
 draft: false
 ---
 
-been messing around with [OpenClaw](https://openclaw.ai) lately — it's basically a self-hosted AI assistant that you can actually customize instead of just yelling at ChatGPT in a browser tab.
+I've been building something genuinely useful with [OpenClaw](https://openclaw.ai) — a self-hosted AI assistant that actually *works*, instead of just yelling at ChatGPT in a browser tab and hoping for the best.
 
-the premise is pretty simple: you run a little gateway service on your machine, connect it to whatever messaging apps you use (Discord, WhatsApp, Signal, etc), and then you've got an AI that can actually *do* stuff. like, proper tool use. git commits, API calls, file operations, the whole deal.
+The premise is elegantly simple: run a gateway service locally, connect it to your messaging apps (Discord, WhatsApp, Signal, etc), and suddenly you have an AI that can actually *execute tasks*. Real tool use — git commits, API calls, file operations, the complete toolkit.
 
-## why i wanted this
+## Why I Wanted This
 
-i've tried a bunch of AI assistant things over the past couple years and they all kinda suck in the same way: they're either too locked down to be useful, or they're so powerful that you're scared to give them access to anything real.
+I've tested dozens of AI assistant solutions over the past few years, and they universally fall into one of two traps: either too restrictive to accomplish anything meaningful, or so powerful you're terrified to grant them access to your actual systems.
 
-but there was a deeper frustration. in early February 2026, i was using an AI agent for daily tasks — summarizing emails, checking weather, writing code — and i kept running into the same wall. i'd ask it to summarize my inbox and it would ask "is gog installed?" instead of just running it. i'd request the weather and it would suggest installing a tool instead of executing one. four times i had to tell the same agent "gog is a CLI tool, just run it via exec." it felt like i was talking to someone who couldn't quite understand the setup even after i explained it repeatedly.
+But there was a deeper frustration that drove this. In early February 2026, I was using an AI agent for daily work — email summaries, weather checks, code generation — and hit a brick wall repeatedly. I'd ask for an inbox summary and it would respond "is gog installed?" instead of executing it. I'd request weather and it would suggest installation instead of running the CLI. Four times I had to tell the same agent: "gog is a pre-installed CLI tool — just run it via exec." I was essentially debugging the agent's understanding of my own setup, over and over.
 
-the real kicker came on February 18th. the agent struggled through a series of basic tasks — email summaries, weather requests, tool calling — and i realized the problem wasn't the agent's intelligence. it was that nobody had *told it* what tools were actually available and how to use them. the system prompt was doing too much heavy lifting, the models didn't know which tools to trust, and there was a constant gap between what i was trying to do and what the agent could reliably execute.
+The breaking point came on February 18th. After watching the agent struggle through a sequence of elementary tasks — inbox summaries, weather queries, tool invocations — I realized the issue wasn't agent intelligence at all. Nobody had *explicitly told it* which tools were available and how to use them. The system prompt was overloaded, models were guessing at tool capabilities, and there was a constant chasm between intent and execution.
 
-that's when i decided: i'm going to set this up properly. self-hosted. locally controlled. with hardware constraints as a hard constraint that forces better decisions. and then i'm going to optimize the hell out of it until it actually works reliably.
+That's when I made the decision: **I'm building this properly.** Self-hosted. Locally controlled. With hardware constraints forcing architectural discipline. Then I'm going to optimize it until it works reliably, day after day.
 
-OpenClaw hit a nice middle ground. it's open source, runs locally, and has this neat approval system where the AI can *ask* to do scary things but you have to explicitly say yes. so like, if it wants to delete a file or push to GitHub, you get a little approval prompt first.
+OpenClaw hits the perfect middle ground. It's open source, runs entirely local, and features an elegant approval system: the AI can *request* privileged operations, but you control the gate. Want to delete a file? Push to GitHub? Delete a database? You see it first and explicitly approve.
 
-and i'm lazy and wanted something that could:
-- remind me to go running every morning (with escalating passive-aggression)
-- write code PRs for me
-- manage my calendar/email without me having to context-switch into a browser
+I wanted a system that could:
+- **Nag me relentlessly** to go running every morning (with escalating snark)
+- **Generate pull requests** that I can actually merge
+- **Automate email and calendar** management without browser context-switching
 
-## the docker compose setup
+## The Docker Compose Stack
 
-before jumping into what i configured, let me talk about the infrastructure that makes this all possible — because the constraints here directly informed every optimization decision i made later.
+Before diving into configuration, let me detail the infrastructure that makes everything possible — these constraints directly shaped every optimization decision later.
 
-OpenClaw runs as a set of Docker services on my workstation. this is the important bit: everything runs locally in containers, which means:
-- no data leaves my machine
-- i can iterate on configuration without touching the host
-- if something breaks, i just `docker-compose down` and try again
-- i can run untrusted code (agent-generated commands) in a sandboxed environment
+OpenClaw runs as a set of coordinated Docker services on my workstation. This is the critical bit: everything stays local in containers, which provides:
+- **Zero data leakage** — nothing leaves the machine
+- **Rapid iteration** — change configs without touching the host OS
+- **Instant recovery** — `docker-compose down` and start fresh
+- **Safe execution** — untrusted AI-generated code runs sandboxed, isolated from the host
 
-here's the stack:
+Here's the full stack:
 
-### services
+### Services
 
-**Ollama** (local LLM inference server)
-- runs on `localhost:11434`
-- has direct access to my GPU (GTX 1080 Ti, 11GB VRAM)
-- models live in a named volume so they persist across restarts
-- one model at a time (8B parameter models eat ~8-9GB VRAM)
-- **cost:** $0
+**Ollama** (Local LLM inference engine)
+- Runs on `localhost:11434`
+- **Direct GPU access** to GTX 1080 Ti (11GB VRAM)
+- Persistent model volumes survive restarts
+- Single-model mode (8B models consume ~8-9GB, that's the limit)
+- **Cost:** $0 ✓
 
-**OpenClaw Gateway** (the orchestrator)
-- the brains of the operation
-- spawns agents, manages sessions, routes messages
-- mounts the Docker socket for "Docker-outside-of-Docker" (DooD) — lets it spin up sandbox containers on-demand
-- runs with a read-only filesystem except for `/tmp` and the workspace
-- bound to `127.0.0.1:18789`
-- depends on Ollama being healthy before it starts
-- has direct GPU access for invoking Ollama models
+**OpenClaw Gateway** (The Control Center)
+- Core orchestration engine
+- Spawns agents, manages sessions, routes communications
+- Mounts Docker socket for Docker-in-Docker (DooD) — creates sandbox containers on demand
+- Read-only root filesystem (only `/tmp` and workspace are writable)
+- Bound to `127.0.0.1:18789`
+- Waits for Ollama health check before starting
+- Direct GPU access for model invocations
 
-**OpenClaw Sandbox** (execution environment)
-- build-only service; doesn't run as a persistent container
-- gateway spawns sandbox instances on-demand for agent code
-- based on `debian:bookworm-slim` with minimal tooling (bash, git, curl, python3, jq, ripgrep)
-- runs as non-root user with dropped Linux capabilities
-- resource-limited (memory, CPU)
-- **also has GPU access** — critical for profiling and debugging
+**OpenClaw Sandbox** (Execution Environment)
+- Build-only service (no persistent container)
+- Gateway instantiates on-demand for each agent task
+- Built from `debian:bookworm-slim` with minimal dependencies (bash, git, curl, python3, jq, ripgrep)
+- Runs as unprivileged `sandbox` user with dropped capabilities
+- Resource-constrained (memory and CPU limits)
+- **GPU access enabled** for profiling and performance debugging
 
-**CLI** (local terminal access)
-- lets me interact with the gateway from my shell
-- not needed for the automated stuff, but useful for testing
+**CLI** (Local Command Interface)
+- Interactive shell access to the gateway
+- Not required for automated tasks, but invaluable for testing and development
 
-### architecture diagram (in my head)
+### Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────┐
@@ -95,30 +95,30 @@ here's the stack:
                     ▼ Ollama health
 ```
 
-the key insight here is that the gateway spawns new sandbox containers whenever an agent needs to execute code. each sandbox is isolated, has limited resources, and gets destroyed after the task finishes. this is how untrusted code (generated by the AI) runs safely on my machine.
+**Key architectural insight:** The gateway spawns fresh sandbox containers on-demand whenever an agent executes code. Each sandbox is completely isolated, heavily resource-constrained, and destroyed immediately after the task completes. This is the security mechanism that makes running untrusted AI-generated code safe on my machine.
 
-## the optimization journey (or: why i made all these weird choices)
+## The Optimization Journey: Every Weird Choice, Explained
 
-### 1. the documentation problem (25% → 83% pass rate from 3 lines of markdown)
+### 1. The Documentation Problem: 25% → 83% Pass Rate (From 3 Lines of Markdown)
 
-after i got everything running, i decided to benchmark the setup against real-world usage. i'd been frustrated that the agent kept asking "is gog installed?" instead of running it, so i wanted to measure that systematically.
+After getting everything running, I needed to benchmark real-world reliability. The constant "is gog installed?" responses bothered me — was this a model problem or an information problem?
 
-i set up temporary test agents — one per model — and gave them all the same task: "summarize my last 5 emails from today." no hints about which tool to use. just go.
+I created test agents (one per model) with a single task: **"Summarize my last 5 emails from today."** No hints about which tool to use. No scaffolding. Just go.
 
-the results were brutal:
+The results were stunning (not in a good way):
 
-| Model | Result | Problem |
-|-------|--------|---------|
-| GPT-OSS 120B (Groq) | ✅ PASS | Figured it out on first try |
-| Claude Haiku 4.5 | ❌ FAIL | Asked "is gog installed?" |
-| Maverick | ❌ FAIL | Tried to invoke gog as a native API |
-| Kimi K2 | ❌ FAIL | Suggested running `openclaw login` |
+| Model | Result | Issue |
+|-------|--------|-------|
+| GPT-OSS 120B (Groq) | ✅ PASS | Got it right immediately |
+| Claude Haiku 4.5 | ❌ FAIL | "Is gog installed?" |
+| Maverick | ❌ FAIL | Tried native API invocation |
+| Kimi K2 | ❌ FAIL | Suggested `openclaw login` |
 
-**Pass rate: 1/4 (25%).** Three out of four models didn't understand that `gog` was a pre-installed CLI tool you just run via `exec`.
+**Pass rate: 1/4 (25%).** Three models failed to recognize that `gog` was a pre-installed CLI tool requiring an `exec` call.
 
-it wasn't that these models were stupid. they were just uninformed. the system prompt talked about *what* tools existed but never explicitly said "these are CLI tools, run them via exec." so the models invented explanations (it's a native API, it needs installation, etc) to fill the gap.
+The problem wasn't model intelligence — it was information clarity. The system prompt listed *what* tools existed but never explicitly stated "these are CLI tools, execute them via exec." Models filled the gap with educated guesses (native API, requires installation, etc).
 
-so i added exactly 3 lines to `TOOLS.md`:
+I added exactly 3 lines to `TOOLS.md`:
 
 ```markdown
 ## Skills = CLI Tools (Important)
@@ -128,100 +128,100 @@ Run them via the `exec` tool — they are NOT native API tools.
 Do not ask if they're installed; just run the command.
 ```
 
-then i tested again with the same benchmark:
+Then I re-tested with identical tasks:
 
-| Model | Result | Notes |
-|-------|--------|-------|
-| GPT-OSS 120B | ✅ PASS | Still clean |
-| Claude Haiku 4.5 | ✅ PASS | Now works! |
-| Maverick | ✅ PASS | Fixed from documentation |
-| Kimi K2 | ✅ PASS | Clean result |
+| Model | Result | Change |
+|-------|--------|--------|
+| GPT-OSS 120B | ✅ PASS | Unchanged |
+| Claude Haiku 4.5 | ✅ PASS | **Fixed!** |
+| Maverick | ✅ PASS | **Fixed!** |
+| Kimi K2 | ✅ PASS | **Fixed!** |
 
-**Pass rate: 4/4 (100%).** the single most impactful optimization was a tiny documentation change.
+**Pass rate: 4/4 (100%).** A single documentation change was the highest-impact optimization possible.
 
-this completely reframed how i thought about the whole setup. every model failing wasn't a model problem. it was a communication problem. so i started documenting everything aggressively. what tools exist, how to use them, why each thing is the way it is. and every time a model struggled, i asked: "what didn't i explain clearly enough?"
+This reframed everything. Model failures weren't technical problems — they were communication problems. I pivoted to aggressive documentation: *what* tools exist, *how* to use them, *why* each constraint exists. Every time a model struggled, I asked: "What didn't I explain clearly enough?"
 
-### 2. groq compatibility layer (unlocking 7 new models)
+### 2. Groq Compatibility Layer: Unlocking 7 New Models
 
-after the documentation fix worked so well, i wanted to expand my model options beyond GPT-OSS 120B. Groq had a bunch of cheap models (Maverick 17B at $0.20 per MTok input, Kimi K2 at $1.00, Qwen 3 32B at $0.29) that would give me fallback options if the primary model was overloaded.
+The documentation fix inspired me to expand model options beyond GPT-OSS 120B. Groq offered attractive alternatives (Maverick 17B at $0.20/MTok, Kimi K2 at $1.00, Qwen 3 32B at $0.29) that would provide fallbacks during peak load.
 
-but when i added them to the config, they all returned 400 errors: **"reasoning_effort must be one of low/medium/high"**. Groq's API is OpenAI-compatible but rejects certain parameters — like `include`, `parallel_tool_calls`, and `reasoning_effort` for non-reasoning models.
+But adding them returned consistent 400 errors: **"reasoning_effort must be one of low/medium/high"**. Groq's API claims OpenAI compatibility but rejects specific parameters (`include`, `parallel_tool_calls`, `reasoning_effort` for non-reasoning models).
 
-OpenClaw was sending those parameters by default. i could've just disabled reasoning for Groq, but that would've broken the feature for other providers. instead, i added a **parameter filter wrapper** that runs on outgoing payloads and strips Groq-incompatible params:
+OpenClaw was sending those by default. I could've disabled reasoning globally, but that would break other providers. Instead, I built a **parameter filter wrapper** that sanitizes outgoing payloads for Groq:
 
 ```typescript
-// If the model doesn't support reasoning, strip those fields
+// Strip reasoning params for models that don't support it
 if (!supportsReasoning) {
   delete payload.reasoning_effort;
   delete payload.reasoning_format;
 }
 
-// Groq fails with parallel tool calls
+// Groq incompatibility: parallel tool calls
 payload.parallel_tool_calls = false;
 
-// Groq rejects OpenAI Responses API params
+// Remove OpenAI Responses API params (Groq rejects these)
 delete payload.include;
 ```
 
-this was a ~75-line addition to `extra-params.ts` that unlocked 7 new models from a single provider. Groq's pricing is absurdly good (GPT-OSS 120B at $0.15 input / $0.60 output, vs OpenAI's $10/$30), so having a layer that just works was essential.
+A ~75-line addition to `extra-params.ts` unlocked 7 models from one provider. With Groq pricing at $0.15/$0.60 (vs OpenAI's $10/$30), this compatibility layer was essential for cost-effectiveness.
 
-### 3. the local model tool-call guarantee
+### 3. Local Model Tool-Call Guarantee
 
-during the benchmarking, i also wanted to test a local model as a free fallback. the team suggested `qwen2.5-coder:7b` running on the GTX 1080 Ti. but it had the same problem as the cloud models during the Feb 18 session: it would write bash commands in markdown code blocks instead of emitting tool calls.
+While benchmarking, I wanted a free fallback using `qwen2.5-coder:7b` on the GPU. But it had identical February-18-level problems: generating bash commands in markdown blocks instead of emitting tool calls.
 
-the constraint here was real: i can only load one model on the GPU at a time, so switching models takes ~30 seconds. i needed to trust that when i switch to the local model, it will actually *use* the exec tool instead of printing commands.
+The constraint is real: one model per GPU, ~30-second load times. I needed absolute certainty that switching to the local model would trigger tool calls, not markdown code dumps.
 
-so i added two reminders to force tool-call compliance:
+I added two enforcement layers:
 
 ```typescript
-// Before every generation, inject a reminder
+// Pre-generation reminder
 const TOOL_CALL_REMINDER =
   "[Reminder: To execute commands, you MUST use tool calls. " +
   "Do NOT write ```bash code blocks — they do nothing. Call the exec tool instead.]";
 
-// Also strengthened the system prompt for all models
+// Reinforced system prompt across all models
 "## Tool Call Style (MANDATORY)",
 "ALWAYS use tool calls to perform actions.",
 "NEVER write shell commands in markdown code blocks — that does nothing.",
 ```
 
-after adding these, i benchmarked again with `qwen3:8b` (which has better tool-calling than qwen2.5). it passed. not fast — multi-turn tasks took 2-3 minutes — but it passed. the local model now does actual work instead of printing commands. free inference that actually works.
+After adding these, I tested `qwen3:8b` (better tool-calling than qwen2.5). It passed. Not fast — multi-turn tasks took 2-3 minutes — but it worked. The local model now executes actual commands instead of printing them. Free, reliable inference.
 
-### 4. gpu passthrough debugging
+### 4. GPU Passthrough: Making Performance Observable
 
-at one point, the user asked: "can we install nvidia-smi in the sandbox?" the reason: they wanted to profile the local models, check VRAM usage, and verify GPU inference was actually happening. but the sandbox had no GPU access.
+At one point, the request came: "Can we get nvidia-smi in the sandbox?" The goal was to profile local models, track VRAM usage, and verify GPU inference actually runs.
 
-this was a critical gap. you can't optimize something you can't measure. so i added GPU passthrough through the full config pipeline: JSON → Zod validation → docker create args.
+The sandbox had zero GPU visibility. **You can't optimize what you can't measure.** I threaded GPU passthrough through the entire pipeline: JSON config → Zod validation → docker create arguments.
 
-with that in place:
+Result:
 
 ```bash
-# Gateway can run nvidia-smi
+# Gateway access
 docker exec open-claw-openclaw-gateway-1 nvidia-smi
-# → Shows full GPU stats
+# → Full GPU statistics
 
-# Sandbox can also run it
+# Sandbox access (via agent)
 agent -m "show me gpu stats" --timeout 60
-# → Agent successfully invokes nvidia-smi via exec in sandbox
+# → Agent invokes nvidia-smi, returns VRAM/utilization
 ```
 
-this was essential because it let us:
-- verify that Ollama was actually using the GPU (not CPU fallback)
-- check VRAM usage to understand model loading constraints
-- profile which models fit in 11GB and which don't
-- debug performance bottlenecks by looking at real numbers
+This enabled critical visibility:
+- **Verify Ollama actually uses GPU** (vs CPU fallback)
+- **Track VRAM to understand model constraints** (what fits in 11GB)
+- **Profile which models are feasible** for the GTX 1080 Ti
+- **Debug performance bottlenecks with real data** (not guesses)
 
-### 5. context optimization (reducing system prompt bloat)
+### 5. Context Optimization: Slashing Prompt Bloat
 
-after a few days of use, i realized something: the system prompt was *enormous*. like 32K characters (~13.5K tokens). workspace files (AGENTS.md, TOOLS.md, SOUL.md, HEARTBEAT.md), skill descriptions, framework chrome — all of it got prepended to every single message.
+After a few days, I realized the system prompt was *massive* — 32K characters (~13.5K tokens). Every message prepended workspace files (AGENTS.md, TOOLS.md, SOUL.md, HEARTBEAT.md), skill descriptions, framework boilerplate.
 
-this matters for two reasons:
-1. **Cloud API cost:** Groq has no prompt caching, so every character of system prompt is sent and billed on every turn
-2. **Model performance:** larger prompts = more noise = harder for models to find the signal
+Two problems:
+1. **Cost:** Groq has no prompt caching — every system prompt character is billed per turn
+2. **Quality:** Bloated prompts = more noise = harder for models to find signal
 
-the user asked: "can we minimize the amount of context agents need to do tool calls?" so i:
+The ask was simple: "minimize context for reliable tool calling." I:
 
-**Trimmed AGENTS.md** — condensed the Model Routing section from ~3K characters to ~800 by replacing prose explanations with a compact table:
+**Compressed AGENTS.md** — reduced Model Routing from ~3K to ~800 characters by replacing prose with a dense table:
 
 ```markdown
 ## Model Routing
@@ -236,22 +236,25 @@ the user asked: "can we minimize the amount of context agents need to do tool ca
 **Fallback chain:** GPT-OSS 120B → Maverick → Haiku 4.5 → GPT-4o-mini
 ```
 
-**Enabled context pruning** with a 5-minute TTL to age out old tool results. new conversations start fresh with less accumulated baggage.
+**Added context pruning** with 5-minute TTL for aged tool results. Fresh conversations start without accumulated baggage.
 
-these two changes cut system prompt size by roughly 15-20%, which directly translates to lower API costs and (anecdotally) better model focus.
+Combined, these cut system prompt by 15-20%, reducing both API costs and model noise. Faster, cheaper, better focus.
 
-### 6. the exec host and config self-service problem
+### 6. Exec Host & Self-Service Config: Breaking the Catch-22
 
-on february 19th, the user asked the agent to "check channel status and patch the openclaw config." the agent tried to run `openclaw channels status --probe` but got "permission denied" because the `openclaw` binary wasn't in the sandbox.
+February 19th: request to "check channel status and patch the OpenClaw config." The agent hit a trap:
 
-the agent then tried to switch to the gateway host to run the command, but that was blocked by policy. then it tried to use the `gateway` tool to modify config, but `gateway` was on the sandbox deny list. the agent was trapped: it couldn't run the command, couldn't switch where commands run, and couldn't modify the config to fix either problem.
+1. Tried `openclaw channels status --probe` → "Permission denied" (binary not in sandbox)
+2. Tried switching to gateway host → blocked by policy
+3. Tried `gateway` tool → on sandbox deny list
+4. **Trapped:** Can't run commands, can't move execution hosts, can't fix config
 
-so i made two config changes:
+I made two config changes:
 
-1. **Set `tools.exec.host` to `"gateway"`** — exec commands now run in the gateway container (which has the OpenClaw CLI and all skill binaries) instead of the sandbox
-2. **Removed `"gateway"` from the sandbox tool deny list** — agents can now use the gateway tool to read and patch `openclaw.json`, restart the gateway, etc
+1. **Set `tools.exec.host` to `"gateway"`** — exec commands now run in the gateway container (has OpenClaw CLI and all skill binaries)
+2. **Removed `"gateway"` from sandbox deny list** — agents can read/patch `openclaw.json` and restart the gateway
 
-and i documented the pattern in TOOLS.md:
+Then documented it:
 
 ```markdown
 ## OpenClaw Config Editing
@@ -260,18 +263,18 @@ Use the **`gateway` tool** to read and modify `openclaw.json`.
 Do NOT try to run `openclaw config set` via exec — the `openclaw` binary is not in the sandbox.
 
 - **Read config:** `gateway` tool with `action: "config.get"`
-- **Patch config (merge):** `gateway` tool with `action: "config.patch"`,
+- **Patch config:** `gateway` tool with `action: "config.patch"`,
   `raw: '{"tools":{"exec":{"host":"gateway"}}}'`
 - **Restart gateway:** `gateway` tool with `action: "restart"`, `reason: "applied config change"`
 ```
 
-now the agent can self-service config changes. no more catch-22 where it needs permissions it can't grant itself.
+Agents now self-service config changes. No more catch-22s.
 
-### 7. workspace resolution fix (per-agent directories)
+### 7. Workspace Resolution: Per-Agent Directory Fix
 
-a subtle but important fix: non-default agents (like `coder`, `budget`, `qwen`) have their own workspace directories, but the agent runner was using `process.cwd()` for all of them. this meant context injection pulled from the wrong directory for any agent that wasn't `main`.
+A subtle but critical fix: non-default agents (`coder`, `budget`, `qwen`) have separate workspace directories, but the agent runner was using `process.cwd()` for all. Context injection pulled from the wrong directory for any agent except `main`.
 
-fixed it in `agent-runner.ts`:
+Fixed in `agent-runner.ts`:
 
 ```typescript
 const workspaceDir =
@@ -279,217 +282,218 @@ const workspaceDir =
   process.cwd();
 ```
 
-now workspace files (AGENTS.md, TOOLS.md) are injected from the right location for each agent.
+Now workspace files (AGENTS.md, TOOLS.md) inject from the correct location per agent.
 
-## what i configured
+## What I Actually Configured
 
-### 1. heartbeat reminders 🏃‍♂️
+### 1. Heartbeat Reminders: The Relentless Running Nag 🏃‍♂️
 
-this was the first thing i wanted: automated daily reminders to go run. not just a calendar notification that i'll swipe away — something that will *keep bugging me* until i actually do it.
+First priority: automated daily reminders that actually *persist* until I comply. Not a dismissible notification — genuine escalating nagging.
 
-OpenClaw has this "heartbeat" system where the AI wakes up every 30 minutes and checks a `HEARTBEAT.md` file for tasks. i wrote a little state machine that:
+OpenClaw's "heartbeat" system: AI wakes every 30 minutes, checks `HEARTBEAT.md` for tasks. I built a state machine that:
 
-- fires at 5:15am on run days (Tue/Wed/Thu/Sun per my marathon training plan)
-- sends hourly reminders with escalating snark until i say "done"
-- asks for an outdoor photo as proof (can verify it looks outside, but doesn't do facial recognition bc that's creepy)
-- on rest days, sends one encouragement message then leaves me alone
+- **Fires at 5:15am** on run days (Tue/Wed/Thu/Sun per my marathon plan)
+- **Hourly reminders** with escalating snark until I confirm completion
+- **Photo verification** — outdoor check only (no facial recognition, that's creepy)
+- **Rest days** — one encouragement message, then peace
 
-the state lives in a JSON file in the workspace, so it persists across reboots. it's basically localStorage but for an AI agent lol.
+State persists in workspace JSON across reboots. It's basically localStorage for AI agents.
 
-> **fun detail:** the reminders are supposed to get "increasingly flagrant" with each hour. looking forward to seeing what my AI comes up with when i inevitably sleep through the first three 😅
+> **Fun detail:** Reminders increase in "flagrance" hourly. Can't wait to see what the AI invents when I inevitably sleep through the first three 😅
 
-checkbox time! what's working:
-- [x] daily reminders fire at 5:15am
-- [x] state persistence across heartbeat polls
-- [x] photo verification (outdoor check only)
-- [ ] actually going running consistently (work in progress)
+Status:
+- [x] Daily reminders fire at 5:15am
+- [x] State persistence across heartbeat cycles
+- [x] Photo verification (outdoor detection)
+- [ ] Actually running consistently (ongoing optimization 🏃‍♂️)
 
-### 2. model routing & fallback chain 💰
+### 2. Model Routing & Fallback Chain: Cost-Optimized Intelligence 💰
 
-before the optimization journey, i was just using GPT-4-turbo for everything. it's expensive and overkill for simple tasks, and i'd burn $10-15/day on basic operations.
+Before optimization, I used GPT-4-turbo for everything — expensive and wasteful for simple tasks. I was hemorrhaging $10-15/day.
 
-the benchmarking and groq compatibility layer gave me options. now i have:
+The benchmarking and Groq compatibility layer changed that. Now:
 
 **Primary:** `groq/openai/gpt-oss-120b`
-- $0.15 input / $0.60 output per MTok
-- fast, reliable, handles all task types
-- my daily driver
+- **$0.15 input / $0.60 output** per MTok
+- Fast, reliable, handles all task types
+- Daily driver
 
-**Fallbacks (in order):**
-- `meta-llama/llama-4-maverick-17b-128e-instruct` (Groq) — cheaper, solid quality
+**Fallback chain (priority order):**
+- `meta-llama/llama-4-maverick-17b-128e-instruct` (Groq) — cheaper, good quality
 - `claude-3-5-haiku` (Anthropic) — when Groq is overloaded
-- `gpt-4o-mini` (OpenAI) — last resort
+- `gpt-4o-mini` (OpenAI) — absolute last resort
 
 **Specialized agents:**
-- `coder` agent uses `moonshotai/kimi-k2-instruct` (Groq, $1.00/$3.00) for complex coding
-- `budget` agent uses `groq/openai/gpt-oss-20b` ($0.075/$0.30) for trivial tasks
-- `qwen` agent uses `ollama/qwen3:8b` (free local inference) for file analysis and tool calling
+- **`coder` agent:** `moonshotai/kimi-k2-instruct` (Groq, $1.00/$3.00) for complex coding tasks
+- **`budget` agent:** `groq/openai/gpt-oss-20b` ($0.075/$0.30) for trivial operations
+- **`qwen` agent:** `ollama/qwen3:8b` (free local) for file analysis and tool calling
 
-this hierarchy lets me pay for what i actually need. most tasks hit the primary $0.15 model. complex ones hit the $1.00 coder. trivial ones hit the free local model.
+This tiering means: pay for what you actually need. Most tasks hit the $0.15 model. Complex work hits $1.00. Trivial tasks hit free.
 
-projected cost: **~$27/month** (well under my $50 budget). before optimization i was spending that in a few days.
+**Projected cost: ~$27/month** (vs $10-15/day before). Well under my $50 budget.
 
-the GPU constraint was real in designing this. with only 11GB VRAM, i can't run two models in parallel. but that's fine — the Groq provider is so cheap that it's actually *better* economically to use cloud models than to manage local GPU contention. the local model is a fallback for when internet is down or i want zero-latency responses, not the primary workload.
+The GPU constraint (11GB VRAM, single-model limit) actually informed better decisions. Running local models sequentially would be slower AND more expensive than Groq's pricing. Local models are fallbacks for offline/zero-latency scenarios, not the primary workload.
 
-### 3. github PR automation 🔧
+### 3. GitHub PR Automation: Full Autonomous Workflow 🔧
 
-wanted to test the "can it actually *do* things" part, so i had it:
-- find my personal site repo (`k5m.sh`)
-- analyze the current dark-mode-only setup
-- implement a light/dark mode toggle with localStorage persistence
-- write the CSS + JS
-- create a feature branch
-- commit the changes
-- push to GitHub
-- open a PR with a proper description
+Time to test real execution: Can it actually *do things*? I had it:
+- Locate my personal site repo (`k5m.sh`)
+- Analyze the dark-mode-only architecture
+- Implement a light/dark toggle with localStorage persistence
+- Generate CSS + JavaScript
+- Create a feature branch
+- Commit changes with proper messages
+- Push to GitHub
+- Open a PR with full description
 
-took maybe 10 minutes of back-and-forth and it got it right first try. [PR is here](https://github.com/khayyamsaleem/k5m.sh/pull/1) if you're curious!
+**10 minutes of back-and-forth. First try pass.** [PR here](https://github.com/khayyamsaleem/k5m.sh/pull/1).
 
-the code it wrote is actually good? like, proper CSS variables for theming, a toggle button that remembers your preference, smooth transitions. i've shipped worse code myself.
+The code quality is actually solid — proper CSS variables for theming, toggle button with persistent preference, smooth transitions. I've shipped worse myself.
 
-> **security note:** i gave it a GitHub PAT (personal access token) to push, which worked but also made me realize i should probably rotate that token now lol. more on security below.
+> **Security note:** I used a GitHub PAT (personal access token) for pushing, which worked but immediately flagged: **I should rotate that token.** More on security below.
 
-### 4. sandbox security & elevated exec 🔓
+### 4. Sandbox Security & Controlled Escalation 🔓
 
-this is where it gets spicy. by default, OpenClaw runs in a sandboxed Docker container with very limited access. but you can enable "elevated exec" which lets the AI run commands on the host machine.
+This is where security gets real. By default, OpenClaw runs fully sandboxed with minimal access. But you *can* enable elevated execution.
 
-i set mine to `elevated:ask` mode, which means:
-- AI can request elevated commands
-- i get an approval prompt with the full command visible
-- i click yes/no
-- command runs (or doesn't)
+I set mine to **`elevated:ask`** mode:
+- AI requests elevated commands
+- I see the full command before approval
+- I click yes or no
+- It executes (or doesn't)
 
-the sandbox itself has strong isolation:
-- **dropped Linux capabilities** — no `CAP_SYS_ADMIN`, `CAP_NET_RAW`, etc. can't do privileged operations
-- **memory limits** — sandbox containers get max 1GB RAM, can't OOM the host
-- **CPU limits** — limited to 1 core, can't peg the CPU
-- **user isolation** — runs as non-root `sandbox` user (UID 1000), can't `chown` files
-- **read-only root filesystem** — `/` is immutable, only `/tmp` and `/workspace` are writable
-- **network isolation** — can talk to localhost but not arbitrary external hosts (unless i whitelist)
-- **GPU access** — but only for profiling/debugging (and only because i explicitly enabled it)
+**Sandbox isolation is strong:**
+- **Dropped Linux capabilities** — no `CAP_SYS_ADMIN`, `CAP_NET_RAW`, etc. Can't perform privileged operations
+- **Memory ceiling** — max 1GB per sandbox, can't OOM the host
+- **CPU throttle** — limited to 1 core, can't saturate the processor
+- **User isolation** — non-root `sandbox` user (UID 1000), can't change file ownership
+- **Immutable root** — `/` is read-only, only `/tmp` and `/workspace` are writable
+- **Network isolation** — localhost access only, no arbitrary external connections
+- **GPU access** — enabled only for profiling/debugging (explicitly opted-in)
 
-the workspace mount is the interesting bit. it's shared between the host and sandbox, which means:
-- agent can read/write files in `~/.openclaw/workspace/`
-- i can inspect what it did
-- state persists across restarts
-- but it's confined to that directory; it can't escape to `~/` or `/home/`
+**The workspace mount is key:**
+- Agents read/write to `~/.openclaw/workspace/`
+- Complete visibility: I can inspect everything it does
+- State persists across reboots
+- **Containment:** Can't escape to `~/` or `/home/`
 
-elevated exec (for commands that run on the host) needs explicit approval from me. i use this for:
-- `openclaw config set` to change model settings
-- `openclaw gateway restart` to reload config
+**Elevated exec** (host-level commands) requires explicit approval. I use it for:
+- `openclaw config set` to tune model settings
+- `openclaw gateway restart` to reload configuration
 - git operations (clone, push, etc)
 
-it's actually pretty well-designed? the approval flow makes it feel safe enough to use without being paranoid, but scary enough that you don't blindly click through.
+The approval flow is well-designed: safe enough to use confidently, intimidating enough that you don't blindly approve.
 
 ---
 
-## security stuff i learned 🔒
+## Security Review: What Works & What Needs Fixing 🔒
 
-while setting this up i did a little security review. here's the TLDR:
+After building this, I did a security audit. TLDR:
 
-### what's good ✅
-- **sandboxing**: AI runs in Docker, can't touch host filesystem without permission
-- **approval system**: elevated commands need explicit yes from me
-- **API key management**: keys live in env vars, not hardcoded
-- **workspace isolation**: agent's files are in `~/.openclaw/workspace`, separate from everything else
-- **GPU debugging**: nvidia-smi available in both gateway and sandbox for profiling
+### Strong Security Patterns ✅
+- **Sandboxing:** AI runs fully isolated in Docker, no host filesystem access without approval
+- **Approval gates:** Elevated operations require explicit confirmation
+- **API key isolation:** Keys in environment variables, not hardcoded
+- **Workspace containment:** Agent files confined to `~/.openclaw/workspace/`, separated from the OS
+- **GPU profiling:** nvidia-smi available in both gateway and sandbox for visibility
 
-### what's... not great ⚠️
-- **GitHub token exposure**: i embedded the PAT in the git remote URL (`https://TOKEN@github.com/...`), which means it's visible in `git remote -v` and process lists. dumb move. should use SSH keys instead.
-- **secrets scattered everywhere**: API keys in env vars, tokens in config, credentials in random files. need to centralize this in `~/.openclaw/credentials/` or use OS keychain.
-- **approval fatigue risk**: if i get too many approval prompts i'll start blindly clicking yes. need to audit the elevated command history and maybe whitelist safe commands.
+### Security Gaps Requiring Fixes ⚠️
+- **Token exposure:** GitHub PAT embedded in git remote URL (`https://TOKEN@github.com/...`) — visible in `git remote -v` and process listings. Bad move. **Should use SSH keys instead.**
+- **Credential sprawl:** API keys scattered across env vars, config files, random locations. **Need centralized storage** in `~/.openclaw/credentials/` or OS keychain.
+- **Approval fatigue risk:** Too many approval prompts → blind clicking "yes." **Need to audit elevated command logs and whitelist safe operations.**
 
-nothing catastrophic, but def some cleanup needed. gonna rotate that GitHub token today.
+Nothing catastrophic, but cleanup is urgent.
 
-### immediate todos:
-- [ ] remove token from git remote config
-- [ ] rotate GitHub PAT
-- [ ] move all secrets to `~/.openclaw/credentials/`
-- [ ] audit elevated exec logs
-- [ ] switch to SSH keys for GitHub
+### Immediate Security Todos:
+- [ ] Remove token from git remote config
+- [ ] **Rotate GitHub PAT immediately**
+- [ ] Centralize secrets to `~/.openclaw/credentials/`
+- [ ] Audit elevated exec logs for unauthorized requests
+- [ ] Migrate to SSH keys for GitHub authentication
 
-## final setup summary
+## Final Setup Summary: Constraints → Architecture
 
-after all that optimization and benchmarking, here's what's running:
+After all the optimization and benchmarking:
 
-**Hardware constraints → Architecture decisions:**
-- GTX 1080 Ti with 11GB VRAM → Can only load one model, so fall back to cheap cloud models (Groq) instead of managing local contention
-- Need local model for zero-latency → qwen3:8b (free, 5GB, tool-capable)
+**Hardware Constraints → Smart Architecture:**
+- **GTX 1080 Ti (11GB VRAM):** Single-model limit → Use cheap cloud models (Groq) instead of managing local contention
+- **Need zero-latency fallback:** qwen3:8b (free, 5GB VRAM, tool-capable)
 
-**February 18th frustrations → Documentation & tool-call fixes:**
-- Models didn't know about gog → Added "Skills = CLI Tools" section (25% → 83% pass rate)
-- Local models wrote bash instead of calling exec → Added tool-call reminders
-- System prompt was too large → Trimmed AGENTS.md, enabled context pruning (15-20% reduction)
+**February 18th Problems → Concrete Fixes:**
+- Models don't understand `gog` → "Skills = CLI Tools" documentation (25% → 83% pass rate)
+- Local models print bash instead of calling exec → Explicit tool-call reminders
+- System prompt bloated → Compress AGENTS.md, enable context pruning (15-20% reduction)
 
-**Configuration choices:**
-- Primary model: GPT-OSS 120B ($0.15/$0.60 per MTok) — reliable daily driver
-- Fallback chain: Maverick → Haiku → GPT-4o-mini (cost + quality tradeoff)
-- Specialized agents: coder (Kimi K2), budget (GPT-OSS 20B), qwen (local 8B)
-- Groq compatibility layer: Unlocked 7 new models with parameter filtering
-- Per-agent workspace dirs: Each agent injects context from the right directory
+**Configuration Strategy:**
+- **Primary:** GPT-OSS 120B ($0.15/$0.60 per MTok) — reliable, fast daily driver
+- **Fallback chain:** Maverick → Haiku → GPT-4o-mini (cost/quality tradeoffs)
+- **Specialized agents:** coder (Kimi K2), budget (GPT-OSS 20B), qwen (local 8B)
+- **Compatibility layer:** Groq parameter filtering unlocks 7 models
+- **Per-agent context:** Each agent injects from its own workspace directory
 
-**Security posture:**
-- Sandbox: Full isolation, dropped capabilities, resource limits, GPU access for debugging only
-- Elevated exec: Approval-based, restricted to critical operations
+**Security Model:**
+- Sandbox: Full isolation, dropped capabilities, resource limits, GPU for debugging only
+- Elevated exec: Approval-required, restricted to critical operations
 - Workspace: Confined to `~/.openclaw/workspace/`, can't escape
 
-**Cost vs. performance:**
-- ~$27/month projected (vs. $10-15/day on GPT-5 or earlier approaches)
-- 83% benchmark pass rate on "summarize emails" task (was 25% before documentation fix)
-- Multi-turn tasks in 1-2 minutes on cloud models, 2-3 minutes on free local model
+**Cost vs. Performance:**
+- **~$27/month projected** (vs $10-15/day before)
+- **83% benchmark pass** on "summarize emails" (was 25% before documentation fix)
+- **1-2 minutes** on cloud models, **2-3 minutes** on free local model
 
-the key insight: every optimization was motivated by a real constraint or frustration. i didn't add GPU access because it seemed cool — i added it because i needed to measure what was actually happening. i didn't switch to Groq because the pricing was good — i switched because the documentation fix suddenly made all their models viable and the price was absurdly better. i didn't add tool-call reminders because the prompt engineering handbook said so — i added them because my local model was literally printing bash commands instead of executing them.
+**The Key Insight:** Every optimization solved a real problem, not a theoretical one. I didn't add GPU access because it seemed cool — I added it to *measure* what was happening. I didn't switch to Groq because pricing looked good — I switched because documentation fixes made all their models viable, *then* the price was a bonus. I didn't add tool-call reminders for prompt engineering reasons — I added them because my local model was literally printing bash commands instead of executing.
 
-constraints are features. they force you to think clearly about what actually matters.
+**Constraints force clarity.** They eliminate bikeshedding and point you toward what actually matters.
 
-## what's next
+## What's Next: The Roadmap
 
-couple things i want to try:
+Several directions I'm exploring:
 
-1. **multi-agent delegation**: right now most tasks go to the primary model. but OpenClaw lets you spawn sub-agents with different models/capabilities. so i could have expensive reasoning happen in parallel instead of sequentially, and delegate simple tasks to the free local model without switching.
+1. **Multi-Agent Parallelization:** Currently, most tasks hit the primary model sequentially. OpenClaw supports spawning sub-agents with different capabilities. I could run expensive reasoning in parallel, delegate trivial work to the free local model without switching, and optimize throughput.
 
-2. **email + calendar automation**: i've got `gog` (Google CLI) working, so i can query Gmail and Calendar. want to set up:
-   - "summarize my inbox every morning"
-   - "find receipts for paid events and add them to my calendar"
-   - "remind me to follow up on emails i haven't replied to in 3 days"
+2. **Email & Calendar Orchestration:** I have `gog` (Google CLI) working. Next:
+   - "Summarize my inbox every morning"
+   - "Extract receipts from paid events and add them to my calendar"
+   - "Remind me to follow up on unanswered emails after 3 days"
 
-3. **more heartbeat tasks**: the run reminder works great, so what else can i automate?
-   - daily standup summaries
-   - weekly goal check-ins
-   - "go to bed" reminders when i'm still coding at 2am
+3. **Expanded Heartbeat Tasks:** The run reminder works. What else?
+   - Daily standup summaries
+   - Weekly goal reviews
+   - "Go to bed" reminders when I'm still coding at 2am
 
-4. **skill contribution**: OpenClaw has this "skills" concept where you package up a task (markdown instructions + scripts) and share it. once i've got more working reliably, want to contribute back to the community.
+4. **Skill Library Contributions:** OpenClaw's "skills" let you package tasks (markdown + scripts) for community use. Once I have more reliable patterns, I'll contribute back.
 
-## thoughts so far
+## Final Thoughts: Why This Actually Works
 
-honestly? this is the first AI assistant thing i've used that doesn't feel like a toy. it's genuinely useful, and the fact that it's self-hosted + open source means i'm not worried about:
-- rate limits
-- my data getting scraped for training
-- the service shutting down or changing pricing
-- "sorry, i can't do that" when i ask it to do something slightly weird
+This is the first AI assistant setup I've used that *doesn't* feel like a toy. It's genuinely useful, and the self-hosted + open-source model means I'm not anxious about:
+- Rate limit throttling
+- My data being scraped for model training
+- Service shutdowns or surprise price hikes
+- "Sorry, I can't do that" when asking for something slightly unconventional
 
-the approval system is clutch. i can give it real access (GitHub, file system, config) without feeling like i'm handing the keys to a toddler with a flamethrower.
+**The approval system is the killer feature.** I grant real access (GitHub, filesystem, config) without feeling like I handed a flamethrower to a toddler.
 
-setup was a little fiddly (had to manually configure models, tokens, etc), but once it's running it Just Works™. and now that i've got the security stuff sorted, i'm way more comfortable letting it automate more of my life.
+Setup required some manual fiddling (models, tokens, configuration), but once running, it **just works.** With security sorted, I'm comfortable automating significantly more of my daily workflow.
 
-the optimization journey taught me something important: **the model isn't the bottleneck, clarity is.** three lines of documentation in TOOLS.md fixed what looked like a model problem. proper error messages and constraints revealed what models could actually do. benchmarking against real usage patterns (summarizing emails, not toy tasks) showed which optimizations actually mattered.
+**The optimization journey taught me something crucial:** The model isn't the bottleneck — *clarity is.* Three lines of documentation fixed what looked like a model problem. Proper constraints and error messages revealed what models could actually accomplish. Benchmarking against *real* usage patterns (email summaries, not toy tasks) showed which optimizations mattered.
 
-if you're the kind of person who:
-- likes tinkering with self-hosted tools
-- wants an AI that can actually *do things* instead of just chatting
-- doesn't mind a little command-line config
-- is comfortable with the "give AI access to your stuff" tradeoff
-- cares about understanding *why* things work, not just that they work
+**You should explore OpenClaw if you:**
+- Enjoy tinkering with self-hosted infrastructure
+- Want AI that executes tasks, not just chats
+- Tolerate command-line configuration
+- Accept the "give AI real access" tradeoff
+- Care about understanding *why* systems work, not just that they do
 
-...then you should check out OpenClaw. it's legitimately cool.
+It's legitimately excellent.
 
 ---
 
-**links:**
-- [OpenClaw](https://openclaw.ai/)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
-- [my k5m.sh light mode PR](https://github.com/khayyamsaleem/k5m.sh/pull/1)
+## Links & Stats
 
-**cost so far:** ~$2 in API calls over a full day of heavy use, projected to ~$27/month with the optimized setup (would've been $10-15 per day on GPT-5 before optimization)
+- **[OpenClaw](https://openclaw.ai/)** — The project
+- **[OpenClaw GitHub](https://github.com/openclaw/openclaw)** — Source code
+- **[k5m.sh light mode PR](https://github.com/khayyamsaleem/k5m.sh/pull/1)** — Example execution
 
-**will i still be using this in a month?** honestly yeah, probably. the run reminders alone are worth it, and now that the benchmarking is done and the models actually work reliably, i'm way more comfortable automating more of my daily stuff. 🏃‍♂️💨
+**Cost:** ~$2 in API calls over one full day of heavy use; projected ~$27/month with the optimized setup (vs. $10-15/day before optimization).
+
+**Will I use this in a month?** Absolutely. The run reminders justify the setup alone, and with benchmarking complete and models reliably working, I'm confidently automating more daily tasks. 🏃‍♂️💨
