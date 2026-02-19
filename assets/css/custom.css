@@ -1,7 +1,7 @@
 /* Light/Dark Mode Support for k5m.sh */
 
 :root {
-  /* Light mode colors (default) */
+  /* Light mode colors (default for non-dark preference) */
   --primary: #0066cc;
   --background: #ffffff;
   --surface: #f8f9fa;
@@ -10,10 +10,12 @@
   --border: #e0e0e0;
   --link: #0066cc;
   --link-hover: #0052a3;
+  --code-background: #f4f4f4;
+  --code-text: #d63384;
 }
 
 [data-theme="dark"] {
-  /* Dark mode colors (Pico CSS default style) */
+  /* Dark mode colors (default on first load) */
   --primary: #4d9cff;
   --background: #11191f;
   --surface: #1a2632;
@@ -22,27 +24,125 @@
   --border: #2d3e50;
   --link: #4d9cff;
   --link-hover: #80b3ff;
+  --code-background: #0d1117;
+  --code-text: #79c0ff;
 }
 
-/* Apply theme colors */
+[data-theme="light"] {
+  /* Explicit light mode override */
+  --primary: #0066cc;
+  --background: #ffffff;
+  --surface: #f8f9fa;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border: #e0e0e0;
+  --link: #0066cc;
+  --link-hover: #0052a3;
+  --code-background: #f4f4f4;
+  --code-text: #d63384;
+}
+
+/* Apply theme colors to all elements */
+html, body {
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
 body {
   background-color: var(--background);
   color: var(--text-primary);
 }
 
+/* Ensure main content area is themed */
+main, article, section {
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+/* Blog content area styling */
+.blog-content, article {
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+/* Code blocks - ensure they're themed */
+code, pre {
+  background-color: var(--code-background);
+  color: var(--code-text);
+}
+
+pre {
+  background-color: var(--code-background);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+code {
+  background-color: var(--code-background);
+  color: var(--code-text);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* Links */
 a {
   color: var(--link);
 }
 
-a:hover {
+a:hover, a:active, a:focus {
   color: var(--link-hover);
 }
 
+/* Tables */
 table {
   border-color: var(--border);
+  background-color: var(--background);
+  color: var(--text-primary);
 }
 
 th, td {
+  border-color: var(--border);
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+thead {
+  background-color: var(--surface);
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+}
+
+/* Form elements */
+input, textarea, select, optgroup {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--primary);
+  background-color: var(--background);
+}
+
+/* Blockquotes */
+blockquote {
+  border-left-color: var(--border);
+  color: var(--text-secondary);
+}
+
+/* HR */
+hr {
   border-color: var(--border);
 }
 
@@ -67,8 +167,8 @@ th, td {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Smooth transitions */
-body, a, table, th, td {
+/* Smooth transitions for all theme-aware elements */
+html, body, main, article, section, a, table, th, td, code, pre, input, textarea, select, blockquote, hr, #theme-toggle {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
@@ -80,8 +180,10 @@ body, a, table, th, td {
 
 .socials a {
   text-decoration: none;
+  color: var(--link);
 }
 
 .socials a:hover {
   text-decoration: underline;
+  color: var(--link-hover);
 }
