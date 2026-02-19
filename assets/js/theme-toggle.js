@@ -1,4 +1,5 @@
 // Light/Dark mode theme toggle with localStorage persistence
+// Default theme: dark mode (on first load and fallback)
 
 (function() {
   // Safe localStorage wrapper with fallback
@@ -21,12 +22,18 @@
     }
   };
 
-  // Check for saved theme preference or default to light mode
-  const savedTheme = storage.get('theme', 'light');
+  // Check for saved theme preference or default to dark mode
+  const savedTheme = storage.get('theme', 'dark');
   
   // Apply theme on load
   if (savedTheme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
+  } else if (savedTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    // Default to dark mode on first load
+    document.documentElement.setAttribute('data-theme', 'dark');
+    storage.set('theme', 'dark');
   }
 
   // Create toggle button
@@ -50,7 +57,7 @@
       toggleButton.title = 'Switch to light mode';
       toggleButton.setAttribute('aria-pressed', 'true');
     } else {
-      document.documentElement.removeAttribute('data-theme');
+      document.documentElement.setAttribute('data-theme', 'light');
       toggleButton.innerHTML = '🌙';
       toggleButton.title = 'Switch to dark mode';
       toggleButton.setAttribute('aria-pressed', 'false');
