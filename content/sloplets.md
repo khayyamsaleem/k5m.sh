@@ -211,3 +211,19 @@ This convergence points to a broader pattern: every sophisticated agentic platfo
 If your AI assistant can write or execute code—and it should be able to—it needs a sloplet. Whether you choose a commercial sandbox platform (E2B, Modal, Sprites) or build your own from a Droplet and Docker depends on your scale, budget, and tolerance for operational complexity. But the choice is not whether to use a sandbox; it is which sandbox architecture best serves your needs.
 
 The sloplet concept celebrates the simplicity and cost-effectiveness of the DIY approach while acknowledging the maturity and convenience of commercial alternatives. In either case, the isolation layer is non-negotiable. Your AI deserves a disaster zone where it can safely explore its capabilities.
+
+## Appendix – VM Options
+
+- **exe.dev** – Persistent virtual machines accessible via SSH. [Website](https://exe.dev)
+- **sprites.dev** – Fly.io's instant VMs with sub‑second startup. [Website](https://sprites.dev)
+- **E2B** – Purpose‑built AI sandbox platform. [Website](https://e2b.dev)
+- **Modal** – Serverless compute and GPU scaling. [Website](https://modal.com)
+- **DigitalOcean App Platform** – Managed container platform. [Docs](https://www.digitalocean.com/docs/app-platform/)
+- **DIY Docker VM** – Self‑hosted DigitalOcean Droplet + Docker. [Docker install guide](https://docs.docker.com/engine/install/)
+
+## Links
+
+- OpenClaw repository: https://github.com/openclaw/openclaw
+- Hugo documentation: https://gohugo.io/documentation/
+- Docker Hub image for OpenClaw: https://hub.docker.com/r/openclaw/openclaw
+- Sloplets post (this article): https://khayyamsaleem.github.io/k5m.sh/sloplets/
