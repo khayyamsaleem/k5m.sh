@@ -1,6 +1,6 @@
 FROM golang:alpine
 
-ENV HUGO_VERSION 0.147.8
+ENV HUGO_VERSION 0.156.0
 
 WORKDIR /tmp
 RUN apk update && apk upgrade && apk add --no-cache curl tar git && \
@@ -14,4 +14,4 @@ WORKDIR /app
 
 ADD . /app
 
-RUN hugo --verbose
+RUN hugo
