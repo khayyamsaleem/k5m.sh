@@ -187,3 +187,32 @@ html, body, main, article, section, a, table, th, td, code, pre, input, textarea
   text-decoration: underline;
   color: var(--link-hover);
 }
+
+/* -----------------------------------------------
+   Media display: center images, videos, iframes
+   and constrain to a readable max-width
+   ----------------------------------------------- */
+
+article img,
+article video,
+article iframe {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Give embedded maps a sensible aspect ratio and full article width */
+article iframe {
+  width: 100%;
+  max-width: 720px;
+  aspect-ratio: 4 / 3;
+  height: auto;
+}
+
+/* Cap videos at a comfortable reading width */
+article video {
+  max-width: 720px;
+  width: 100%;
+}
