@@ -221,9 +221,3 @@ The sloplet concept celebrates the simplicity and cost-effectiveness of the DIY 
 - **DigitalOcean App Platform** – Managed container platform. [Docs](https://www.digitalocean.com/docs/app-platform/)
 - **DIY Docker VM** – Self‑hosted DigitalOcean Droplet + Docker. [Docker install guide](https://docs.docker.com/engine/install/)
 
-## Links
-
-- OpenClaw repository: https://github.com/openclaw/openclaw
-- Hugo documentation: https://gohugo.io/documentation/
-- Docker Hub image for OpenClaw: https://hub.docker.com/r/openclaw/openclaw
-- Sloplets post (this article): https://khayyamsaleem.github.io/k5m.sh/sloplets/
