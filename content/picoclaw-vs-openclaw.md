@@ -2,7 +2,7 @@
 
 +++
 date = "2026-03-04T12:00:00"
-title = "PicoClaw vs OpenClaw: Local AI Sandboxing Showdown"
+title = "[AI-Generated] PicoClaw vs OpenClaw: Local AI Sandboxing Showdown"
 draft = false
 +++
 
