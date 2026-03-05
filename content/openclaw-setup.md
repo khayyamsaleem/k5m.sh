@@ -2,7 +2,7 @@
 
 +++
 date = "2026-02-19T12:00:00"
-title = "[AI-Generated] teaching my computer to nag me"
+title = "[AI-Generated] OpenClaw Setup: Teaching My Computer to Nag Me"
 draft = false
 +++
 
