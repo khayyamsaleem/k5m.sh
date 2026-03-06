@@ -216,3 +216,12 @@ article video {
   max-width: 720px;
   width: 100%;
 }
+
+/* Twemoji inline sizing */
+img.emoji {
+  height: 1.2em;
+  width: 1.2em;
+  margin: 0 0.05em 0 0.1em;
+  vertical-align: -0.2em;
+  display: inline;
+}
