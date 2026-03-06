@@ -16,7 +16,11 @@
     {{ range .Site.RegularPages }}
       <tr data-created="{{ .Date.Unix }}" data-modified="{{ .Lastmod.Unix }}">
         <td><a href="{{ .RelPermalink }}">
-          {{- with .Title -}}
+          {{- if (in .Params.tags "ai-generated") -}}
+            <span title="AI-generated">🤖</span>
+          {{- else -}}
+            <span title="Human-written">💙</span>
+          {{- end }} {{ with .Title -}}
             {{ . | $.RenderString }}
           {{- else -}}
             {{ humanize .File.TranslationBaseName | lower | $.RenderString}}

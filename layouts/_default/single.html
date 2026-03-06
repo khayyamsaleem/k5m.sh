@@ -7,7 +7,11 @@
 {{ define "main" }}
 <article>
   <h1>
-  {{- with .Title -}}
+  {{- if (in .Params.tags "ai-generated") -}}
+    <span title="AI-generated">🤖</span>
+  {{- else -}}
+    <span title="Human-written">💙</span>
+  {{- end }} {{ with .Title -}}
   {{ . | lower | $.RenderString }}
 {{- else -}}
   {{ humanize .File.TranslationBaseName | lower | $.RenderString }}

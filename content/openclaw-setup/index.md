@@ -1,6 +1,7 @@
 +++
 date = "2026-02-20T12:00:00"
-title = "[AI-Generated] teaching my computer to nag me"
+title = "teaching my computer to nag me"
+tags = ["ai-generated"]
 draft = false
 +++
 
