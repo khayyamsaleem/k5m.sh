@@ -217,6 +217,25 @@ article video {
   width: 100%;
 }
 
+/* Heading anchor links */
+.heading-anchor {
+  text-decoration: none;
+  color: var(--text-secondary);
+  opacity: 0;
+  font-weight: normal;
+  margin-right: 0.3em;
+  transition: opacity 0.2s ease;
+}
+
+h1:hover .heading-anchor,
+h2:hover .heading-anchor,
+h3:hover .heading-anchor,
+h4:hover .heading-anchor,
+h5:hover .heading-anchor,
+h6:hover .heading-anchor {
+  opacity: 1;
+}
+
 /* Twemoji inline sizing */
 img.emoji {
   height: 1.2em;
