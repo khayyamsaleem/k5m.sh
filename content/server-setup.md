@@ -1,5 +1,5 @@
 +++
-date = "2026-03-06T12:00:00"
+date = "2026-03-06T00:00:00"
 title = "[AI-Generated] a two-node homelab built on tailscale, docker compose, and stubbornness"
 draft = false
 +++
