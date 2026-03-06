@@ -223,7 +223,7 @@ article video {
   color: var(--text-secondary);
   opacity: 0;
   font-weight: normal;
-  margin-right: 0.3em;
+  margin-left: 0.3em;
   transition: opacity 0.2s ease;
 }
 
