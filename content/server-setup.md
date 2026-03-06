@@ -21,12 +21,18 @@ And I wanted all of it exposed over HTTPS with real TLS certificates, without pu
 
 The [server repo](https://github.com/khayyamsaleem/server) tells the whole story. The first commit was October 2018. The last commit before the AI overhaul was January 2021. That is **five years** of zero updates to the configuration, not because everything was fine, but because the thought of untangling it all was too daunting to bother with.
 
+The VPS was a single DigitalOcean droplet running **Ubuntu 20.04** -- itself end-of-life -- with no dedicated volume for persistent data. Everything lived on the root disk. If the droplet died, so did my data.
+
 Here is what the old setup looked like:
 
 - **Only the VPS was in git.** Cherryblossom's config was not tracked at all -- just a pile of compose files and configs on disk that I was afraid to touch.
-- **Jenkins ran as root in privileged mode** with a custom Dockerfile that baked in the Docker binary. It had full access to the Docker socket. Wildly unnecessary.
-- **Logging was Fluentd → Elasticsearch → Kibana.** A whole ELK stack just for logs, running on a tiny VPS. No metrics, no monitoring, no dashboards. If something broke, I SSHed in and ran `docker logs`.
-- **Jellyfin was exposed through a `socat` proxy** -- literally piping raw TCP traffic from the VPS to my home server over Tailscale. No TLS termination on the Jellyfin traffic, no proper reverse proxy, just socket forwarding. It worked, but it was insecure and fragile.
+- **No Tailscale integration.** The two nodes were connected, but there was no structured networking between them. Services on cherryblossom were exposed through hacks rather than a proper mesh VPN setup.
+- **Jellyfin was exposed through a `socat` proxy** -- literally piping raw TCP traffic from the VPS to my home server. No TLS termination on the Jellyfin traffic, no proper reverse proxy, just raw socket forwarding. It worked, but it was insecure and fragile.
+- **Jenkins ran as root in privileged mode** with a custom `Dockerfile` that baked in the Docker binary for a hacky Docker-in-Docker setup. It had full access to the Docker socket. Wildly unnecessary.
+- **Logging was an exposed EFK stack** -- Fluentd → Elasticsearch → Kibana, running on a tiny VPS with Kibana directly exposed to the internet via Traefik. A whole Java-based search engine just for container logs.
+- **Zero monitoring.** No metrics collection, no dashboards, no alerting. If something broke, I SSHed in and ran `docker logs`.
+- **Dead apps cluttering the config** -- a Gitea instance I was not using anymore, sitting there consuming resources.
+- **No dedicated storage volume** -- all persistent data (Jenkins home, Elasticsearch indices, TLS certs) lived on the droplet's root disk with no backup strategy.
 - **The VPN setup for torrenting used hardcoded WireGuard server addresses** that would go stale when NordVPN rotated endpoints.
 - **Credentials were scattered everywhere** -- some in compose files, some in `.env`, some just hardcoded inline.
 - **Traefik used DigitalOcean DNS** for certificate challenges before I moved DNS to Cloudflare.
@@ -70,39 +76,39 @@ So I split the problem in half.
 Here is the high-level view of how everything connects:
 
 ```
-                    Internet
-                       |
-                       v
-              +--- juul (VPS) ---+
-              |                  |
-              |  Traefik <-- TLS |
-              |    |             |
-              |    +-- Jenkins   |
-              |    +-- Grafana   |
-              |    +-- jelly -----------+
-              |    +-- transmission ----+
-              |                  |     |
-              |  VictoriaMetrics |     | Tailscale
-              |    ^  ^          |     |
-              |    |  +- OTel    |     |
-              |    |   Collector |     |
-              |  Loki            |     |
-              |    ^             |     |
-              +----+-------------+     |
-                   |                   |
-              +----+-- cherryblossom --+--+
-              |    |                   |  |
-              |  Promtail    Jellyfin <+  |
-              |                           |
-              |  Gluetun (NordVPN)        |
-              |    +-- Transmission       |
-              |                           |
-              |  Ollama (GPU)             |
-              |    +-- Envoy proxy        |
-              |    +-- PicoClaw           |
-              |                           |
-              |  node-exporter, cAdvisor  |
-              +---------------------------+
+                     Internet
+                        |
+                        v
+              +----- juul (VPS) -----+
+              |                      |
+              |  Traefik <-- TLS     |
+              |    |                 |
+              |    +-- Jenkins       |
+              |    +-- Grafana       |
+              |    +-- jelly --------+-------+
+              |    +-- transmission -+-------+
+              |                      |       |
+              |  VictoriaMetrics     |       | Tailscale
+              |    ^  ^              |       |
+              |    |  +- OTel        |       |
+              |    |    Collector    |       |
+              |  Loki                |       |
+              |    ^                 |       |
+              +----+-----------------+       |
+                   |                         |
+              +----+--- cherryblossom ---+---+
+              |    |                     |   |
+              |  Promtail    Jellyfin <--+   |
+              |                              |
+              |  Gluetun (NordVPN)           |
+              |    +-- Transmission          |
+              |                              |
+              |  Ollama (GPU)                |
+              |    +-- Envoy proxy           |
+              |    +-- PicoClaw              |
+              |                              |
+              |  node-exporter, cAdvisor     |
+              +------------------------------+
 ```
 
 All public traffic enters through juul. Everything that needs to reach cherryblossom goes over Tailscale. There is no port forwarding on my home router, no dynamic DNS hacks, no exposed residential IP.
