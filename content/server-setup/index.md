@@ -74,43 +74,9 @@ So I split the problem in half.
 
 Here is the high-level view of how everything connects:
 
-```
-                    Internet
-                       |
-                       v
-             +----- juul (VPS) ------+
-             |                       |
-             |  Traefik <-- TLS      |
-             |    |                  |
-             |    +-- Jenkins        |
-             |    +-- Grafana        |
-             |    +-- jelly ---------+-------+
-             |    +-- transmission --+-------+
-             |                       |       |
-             |  VictoriaMetrics      |       |
-             |    ^  ^               |       | Tailscale
-             |    |  +- OTel         |       |
-             |    |    Collector     |       |
-             |  Loki                 |       |
-             |    ^                  |       |
-             +----+------------------+       |
-                  |                          |
-             +----+--- cherryblossom --------+
-             |    |                          |
-             |  Promtail       Jellyfin <----+
-             |                               |
-             |  Gluetun (NordVPN)            |
-             |    +-- Transmission           |
-             |                               |
-             |  Ollama (GPU)                 |
-             |    +-- Envoy proxy            |
-             |    +-- PicoClaw               |
-             |                               |
-             |  node-exporter, cAdvisor      |
-             +-------------------------------+
-```
+![Server architecture diagram showing juul and cherryblossom connected via Tailscale containers](server-architecture.svg)
 
-All public traffic enters through juul. Everything that needs to reach cherryblossom goes over Tailscale. There is no port forwarding on my home router, no dynamic DNS hacks, no exposed residential IP.
+All public traffic enters through juul. All inter-node Docker traffic flows through Tailscale containers -- no metrics ports exposed on the host, no port forwarding on my home router, no dynamic DNS hacks, no exposed residential IP.
 
 ## 🖥️ The MOTDs
 
@@ -167,6 +133,38 @@ Tailscale is the single most important piece of infrastructure in this setup. It
 
 This matters because Traefik on juul can proxy requests to services running on cherryblossom using its Tailscale IP. When someone hits `jelly.khayyam.me`, Traefik terminates TLS, then forwards the request over the Tailscale tunnel to Jellyfin running on cherryblossom. Same for `transmission.khayyam.me`. The user gets a normal HTTPS experience. The traffic between nodes is encrypted end-to-end by WireGuard. And I never had to open a single port on my home network.
 
+### The overlay network: Tailscale containers
+
+The initial setup used host-level Tailscale daemons for everything. That worked, but it meant every exporter and internal service had to bind a port on the host just so the other node could scrape it. Docker bypasses UFW by writing direct iptables rules for published ports, so those "internal" metrics endpoints were actually reachable from the public internet. Not great.
+
+The fix was to push all inter-node Docker traffic through **Tailscale containers** -- separate Tailscale nodes that live inside the Docker network and use `TS_SERVE_CONFIG` to TCP-forward ports to internal services. Think of it as an overlay network on top of the overlay network.
+
+Each node now runs a Tailscale container alongside its services:
+
+- **juul-docker** -- forwards TCP 3100 to Loki, so cherryblossom's Promtail can push logs without Loki binding a host port
+- **cherryblossom-docker** -- forwards TCP 9100 (node-exporter), 9101 (cAdvisor), 9594 (jellyfin-exporter), 9901 (Envoy metrics), and 19091 (transmission-exporter) to their respective containers
+
+VictoriaMetrics on juul scrapes `cherryblossom-docker:PORT` through Tailscale. Promtail on cherryblossom pushes to `juul-docker:3100` through Tailscale. No host port bindings on any of those services. The only ports still exposed on the host are the ones that need LAN access: Jellyfin (8096), the Transmission web UI (9091), and the VPN peer port (51413).
+
+The one exception is the **network-exporter**, which uses `network_mode: host` because it needs raw socket access for ICMP and MTR probes. Since it runs in the host network namespace, the Tailscale container cannot reach it through Docker DNS. VictoriaMetrics scrapes it directly via the cherryblossom host's Tailscale IP instead. One service out of six -- an acceptable compromise.
+
+The host Tailscale daemons still run for SSH access and node management. They are the underlay. The Tailscale containers are the overlay, handling all Docker-to-Docker traffic between nodes. Two layers of WireGuard encryption, zero exposed metrics ports.
+
+```json
+// cherryblossom/tailscale-serve.json
+{
+  "TCP": {
+    "9100": { "TCPForward": "node-exporter:9100" },
+    "9101": { "TCPForward": "cadvisor:8080" },
+    "9594": { "TCPForward": "jellyfin-exporter:9594" },
+    "9901": { "TCPForward": "envoy:9901" },
+    "19091": { "TCPForward": "transmission-exporter:19091" }
+  }
+}
+```
+
+The serve config is just a JSON file mounted into the container. Tailscale reads it on startup and begins accepting TCP connections on those ports, forwarding them to the Docker service names. Since the Tailscale container is on the same Docker network as the services, the DNS resolution just works.
+
 ## 🔒 Networking: Traefik and TLS
 
 Traefik runs on juul and handles all reverse proxying. TLS certificates come from Let's Encrypt using the Cloudflare DNS challenge, which means I do not need to expose port 80 for HTTP-01 validation. Traefik talks to the Cloudflare API, creates a DNS TXT record to prove domain ownership, and gets the cert. Clean and automatic.
@@ -190,7 +188,7 @@ The monitoring stack lives entirely on juul:
 - **Loki** for log aggregation
 - **Promtail** (on cherryblossom) ships logs to Loki over Tailscale
 
-Both nodes run **node-exporter** and **cAdvisor** to expose host and container metrics. VictoriaMetrics scrapes them all, reaching cherryblossom's exporters over Tailscale.
+Both nodes run **node-exporter** and **cAdvisor** to expose host and container metrics. VictoriaMetrics scrapes cherryblossom's exporters through the `cherryblossom-docker` Tailscale container, which TCP-forwards each port to the corresponding exporter. No metrics endpoints are exposed on the host network.
 
 One neat trick: Jenkins metrics go through an **OpenTelemetry Collector** rather than being scraped directly. The reason is credential management. If VictoriaMetrics scraped Jenkins directly, I would need to embed Jenkins credentials in the scrape configuration. Instead, the OTel Collector runs alongside Jenkins on juul, receives metrics via push, and VictoriaMetrics scrapes the collector. No credentials in scrape configs. The OTel Collector acts as a credential boundary.
 
@@ -212,11 +210,11 @@ In front of Ollama sits an **Envoy proxy** that intercepts inference requests an
 
 **PicoClaw** is a gateway that sits alongside Ollama and provides AI agent capabilities -- tool use, function calling, that kind of thing. It talks to Ollama for inference and exposes a cleaner API for agentic workloads.
 
-## ⚡ Boot resilience: binding to 0.0.0.0
+## ⚡ Boot resilience
 
-One operational lesson I learned the hard way: do not bind containers to Tailscale IPs directly. If you set a container to listen on the Tailscale IP (e.g., `100.x.y.z:8080`), and Tailscale has not started yet when Docker brings up the container, the bind fails and the container crashes.
+An earlier iteration of this setup bound containers to the host's Tailscale IP (e.g., `100.x.y.z:8080`) to avoid exposing metrics ports to the public internet. That created a boot ordering problem: if Tailscale had not started yet when Docker brought up the container, the bind failed and the container crashed.
 
-The fix is simple: bind everything to `0.0.0.0` and use firewall rules or Docker network isolation to control access. The containers start regardless of whether Tailscale is up yet, and once Tailscale comes online, traffic flows normally. This sounds obvious in retrospect, but it cost me a few frustrating debugging sessions where containers would work fine after a manual restart but fail on boot.
+The Tailscale container overlay eliminated this problem entirely. Services no longer bind host ports at all -- they listen on the Docker bridge network, and the Tailscale container handles forwarding. Since everything is container-to-container within Docker, there is no dependency on the host Tailscale daemon being up first. The containers start in any order, and once the Tailscale container joins the tailnet, traffic flows.
 
 ## 🔐 Credential management
 
@@ -241,7 +239,7 @@ On **cherryblossom**:
 - `torrenting` -- Gluetun (NordVPN WireGuard), Transmission with Flood UI
 - `ai` -- Ollama (GPU), PicoClaw gateway, Envoy metrics proxy
 - `monitoring` -- node-exporter, cAdvisor, Promtail (ships to Loki on juul)
-- `infra` -- Watchtower for automatic container image updates
+- `infra` -- Tailscale container (overlay network), Watchtower for automatic image updates
 
 A top-level `docker-compose.yml` on each node includes all the stacks using the `include` directive. This means I can bring up the entire node with a single `docker compose up -d`, but I can also work on individual stacks in isolation when I need to. It keeps the files readable and the mental model clear.
 
