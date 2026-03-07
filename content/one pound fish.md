@@ -15,7 +15,7 @@ It was also a good excuse to finally try out the [BrightLine](https://www.gobrig
 
 
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/PXL_20250213_213251763.jpg" alt="colorful lifeguard tower" caption="cute little lifeguard hut on miami beach" >}}
+![cute little lifeguard hut on miami beach](https://stuff.k5m.sh/one-pound-fish/PXL_20250213_213251763.jpg)
 
 ## Arrival
 The night before I got there, I contracted such an ungodly awful fever :face_with_thermometer: and cough and stuffy nose. It was insanely debilitating, but I had too much invested in the fishing trip already, so I drugged myself heavily :pill:, masked up :mask:, and dragged myself to the airport (5am flight :sob:). 
@@ -28,7 +28,7 @@ This was truly an awesome experience -- early morning drive down to the marina, 
 
 This is where deep sea fishing started to differentiate itself. The boat was kitted out with all the cheat-codes; I wish that I had asked the captain more about how it all worked! But he would troll in circles above schools of fish visible on his radar, at different depths throughout the trip.
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/DSC01935.JPG" alt="fish control panel" caption="fish control panel" >}}
+![fish control panel](https://stuff.k5m.sh/one-pound-fish/DSC01935.JPG)
 
 
 > Don't know where to stick this in the narrative, but another cool thing was seeing SpaceX Starlink deployment rockets go up while we were out on the water! :rocket:
@@ -38,17 +38,17 @@ There were 5 of us on the boat, and once we caught some steam, there was a fish 
 
 Here was our first day's catch:
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/PXL_20250209_211636649.jpg" alt="the catch" caption="the catch" >}}
+![the catch](https://stuff.k5m.sh/one-pound-fish/PXL_20250209_211636649.jpg)
 
 The BIG narrow grey fish were king mackerel. The smaller folks are split between red snappers, lane snappers, and mangrove snappers. Our tastiest catch for sure were those top-row triggerfish. We confirmed this when we skinned our catch back at the marina and brought it to the ocean-side restaurant and tiki bar for grilling! They took our catch and seasoned it and made fish tacos and cutlets for us, and I have never enjoyed fish more than I did that day!
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/PXL_20250208_234141773.jpg" alt="the marina restaurant" caption="the marina restaurant where we could bring our catch from the day and have it grilled up for us!!" >}}
+![the marina restaurant where we could bring our catch from the day and have it grilled up for us!!](https://stuff.k5m.sh/one-pound-fish/PXL_20250208_234141773.jpg)
 
 {{< vid src="https://stuff.k5m.sh/one-pound-fish/IMG_8751.MOV" caption="our catch, seasoned and grilled for our pleasure" size="360px" >}}
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/DSC01979.JPG" alt="presenting our catch to a carnival cruise ship" caption="presenting our catch to a carnival cruise ship" >}}
+![presenting our catch to a carnival cruise ship](https://stuff.k5m.sh/one-pound-fish/DSC01979.JPG)
 
-{{< fig src="https://stuff.k5m.sh/one-pound-fish/DSC01990.JPG" alt="presenting my fish to friends' cameras" caption="presenting my fish to friends' cameras" >}}
+![presenting my fish to friends' cameras](https://stuff.k5m.sh/one-pound-fish/DSC01990.JPG)
 
 
 ## Back in Miami
