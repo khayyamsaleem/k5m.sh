@@ -10,6 +10,23 @@
   {{ range $authors }}{{ $allAuthors = merge $allAuthors (dict .key (dict "avatar" .avatar "name" .name)) }}{{ end }}
 {{ end }}
 
+<div class="list-controls js-only">
+  <div class="sort-controls">
+    sort by:
+    <button class="sort-btn active" data-sort-key="created">created</button>
+    <button class="sort-btn" data-sort-key="modified">modified</button>
+  </div>
+  <div class="filter-controls">
+    filter:
+    <button class="filter-btn active" data-author="all" data-tooltip="all authors">all</button>
+    {{ range $key, $info := $allAuthors }}
+    <button class="filter-btn" data-author="{{ $key }}" data-tooltip="{{ $info.name }}">
+      <img class="author-avatar" src="{{ $info.avatar }}" alt="{{ $info.name }}">
+    </button>
+    {{ end }}
+  </div>
+</div>
+
 <ul class="post-list" id="posts">
   {{ range .Site.RegularPages }}
     {{ $authors := partial "authors.html" . }}
@@ -34,29 +51,33 @@
 </ul>
 <button class="sort-btn" id="show-more" hidden></button>
 
-<div class="list-controls js-only">
-  <div class="sort-controls">
-    sort by:
-    <button class="sort-btn active" data-sort-key="created">created</button>
-    <button class="sort-btn" data-sort-key="modified">modified</button>
-  </div>
-  <div class="filter-controls">
-    filter:
-    <button class="filter-btn active" data-author="all" data-tooltip="all authors">all</button>
-    {{ range $key, $info := $allAuthors }}
-    <button class="filter-btn" data-author="{{ $key }}" data-tooltip="{{ $info.name }}">
-      <img class="author-avatar" src="{{ $info.avatar }}" alt="{{ $info.name }}">
-    </button>
-    {{ end }}
-  </div>
-</div>
-
 <script>
 (() => {
   const list = document.getElementById('posts');
   const showMoreBtn = document.getElementById('show-more');
   const PAGE_SIZE = 10;
   let posts = [], sortKey = 'created', asc = false, filterAuthor = 'all', showAll = false;
+
+  function buildEl(p) {
+    const li = document.createElement('li');
+    li.className = 'post-item';
+    const a = document.createElement('a');
+    a.href = p.href;
+    a.innerHTML = p.title;
+    const indicators = document.createElement('span');
+    indicators.className = 'post-indicators';
+    indicators.innerHTML = p.authors.map(au =>
+      `<span class="post-indicator" data-tooltip="${au.name}">` +
+      `<img class="author-avatar" src="${au.avatar}" alt="${au.name}">` +
+      `</span>`
+    ).join('');
+    const time = document.createElement('time');
+    time.className = 'post-date';
+    li.append(a, indicators, time);
+    if (typeof twemoji !== 'undefined') twemoji.parse(li, { folder: 'svg', ext: '.svg' });
+    p.el = li;
+    p.timeEl = time;
+  }
 
   function render() {
     const filtered = posts.filter(p =>
@@ -67,29 +88,28 @@
     const dateKey = sortKey === 'modified' ? 'modifiedFmt' : 'createdFmt';
     const isoKey = sortKey === 'modified' ? 'modifiedISO' : 'createdISO';
     const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
+    const visibleSet = new Set(visible);
 
-    list.innerHTML = visible.map(p => {
-      const indicators = p.authors.map(a =>
-        `<span class="post-indicator" data-tooltip="${a.name}">` +
-        `<img class="author-avatar" src="${a.avatar}" alt="${a.name}">` +
-        `</span>`
-      ).join('');
-      return `<li class="post-item">` +
-        `<a href="${p.href}">${p.title}</a>` +
-        `<span class="post-indicators">${indicators}</span>` +
-        `<time class="post-date" datetime="${p[isoKey]}">${p[dateKey]}</time>` +
-        `</li>`;
-    }).join('');
+    // update date text and reorder visible items
+    visible.forEach(p => {
+      p.timeEl.textContent = p[dateKey];
+      p.timeEl.setAttribute('datetime', p[isoKey]);
+      p.el.classList.remove('post-hidden');
+      list.appendChild(p.el);
+    });
+
+    // hide filtered-out items
+    posts.forEach(p => {
+      if (!visibleSet.has(p)) {
+        p.el.classList.add('post-hidden');
+      }
+    });
 
     if (filtered.length > PAGE_SIZE && !showAll) {
       showMoreBtn.textContent = `show all (${filtered.length})`;
       showMoreBtn.hidden = false;
     } else {
       showMoreBtn.hidden = true;
-    }
-
-    if (typeof twemoji !== 'undefined') {
-      twemoji.parse(list, { folder: 'svg', ext: '.svg' });
     }
   }
 
@@ -119,7 +139,12 @@
 
   fetch('/index.json')
     .then(r => r.json())
-    .then(data => { posts = data; render(); });
+    .then(data => {
+      posts = data;
+      posts.forEach(buildEl);
+      list.innerHTML = '';
+      render();
+    });
 })();
 </script>
 {{ end }}

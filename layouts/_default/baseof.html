@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>
+    <link rel="icon" type="image/png" href="/img/khayyam.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -41,5 +42,7 @@
     <script src="{{ $ansi.RelPermalink }}" defer></script>
     {{ $toc := resources.Get "js/toc.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
     <script src="{{ $toc.RelPermalink }}" defer></script>
+    {{ $lightbox := resources.Get "js/lightbox.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
+    <script src="{{ $lightbox.RelPermalink }}" defer></script>
   </body>
 </html>

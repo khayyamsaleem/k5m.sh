@@ -1,0 +1,6 @@
+<figure{{ with .Get "class" }} class="{{ . }}"{{ end }}{{ with .Get "size" }} style="max-width: {{ . }}"{{ end }}>
+  <video controls autoplay muted playsinline>
+    <source src="{{ .Get "src" }}" type="video/mp4">
+  </video>
+  {{ with .Get "caption" }}<figcaption>{{ . }}</figcaption>{{ end }}
+</figure>
