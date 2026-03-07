@@ -1,0 +1,24 @@
+{{- $posts := slice -}}
+{{- range .Site.RegularPages -}}
+  {{- $authors := partial "authors.html" . -}}
+  {{- $authorList := slice -}}
+  {{- range $authors -}}
+    {{- $authorList = $authorList | append (dict "key" .key "name" .name "avatar" .avatar) -}}
+  {{- end -}}
+  {{- $title := "" -}}
+  {{- with .Title -}}{{- $title = (. | emojify) -}}{{- else -}}{{- $title = (humanize .File.TranslationBaseName | lower | emojify) -}}{{- end -}}
+  {{- $posts = $posts | append (dict
+    "title" $title
+    "href" .RelPermalink
+    "created" .Date.Unix
+    "createdFmt" (.Date.Format "02 Jan 2006")
+    "createdISO" (.Date.Format "2006-01-02")
+    "modified" .Lastmod.Unix
+    "modifiedFmt" (.Lastmod.Format "02 Jan 2006")
+    "modifiedISO" (.Lastmod.Format "2006-01-02")
+    "authors" $authorList
+    "summary" (.Summary | plainify)
+    "content" (.Plain | truncate 5000)
+  ) -}}
+{{- end -}}
+{{- $posts | jsonify -}}

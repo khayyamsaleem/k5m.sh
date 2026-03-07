@@ -1,6 +1,7 @@
 +++
 date = "22 Jun 2025"
 title = "one pound fish :fish: -- miami and cape canaveral"
+author = "khayyam"
 +++
 
 In February of this year (2025), I went to Cape Canaveral with some friends to try out deep sea fishing for the first time! :fish: 

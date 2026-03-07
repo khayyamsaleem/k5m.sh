@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
   <head>
+    <script>document.documentElement.classList.replace('no-js','js');</script>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>
-    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     {{ $customCSS := resources.Get "css/custom.css" | resources.Fingerprint }}
     <link rel="stylesheet" href="{{ $customCSS.RelPermalink }}">
   </head>
-  <body class="container">
-    <header>
+  <body>
+    <header class="site-header">
       <h1><a href="{{ "/" | relURL }}">{{ .Site.Title }}</a></h1>
     </header>
 
@@ -16,28 +20,26 @@
       {{ block "main" . }}{{ end }}
     </main>
 
-    <footer>
-      © {{ now.Year }} · Built with <a href="https://gohugo.io/">Hugo</a> and <a href="https://obsidian.md/">Obsidian</a>
-      <footer class="mt-4">
-      <!-- Social links -->
+    <footer class="site-footer">
+      <p>&copy; {{ now.Year }} &middot; Built with <a href="https://gohugo.io/">Hugo</a> and <a href="https://obsidian.md/">Obsidian</a></p>
       <p class="socials">
-        <a href="https://github.com/khayyamsaleem"      rel="me">GitHub</a> ·
-        <a href="mailto:hello@khayyam.me"               rel="me">Email</a> ·
-        <a href="https://www.linkedin.com/in/khayyamsaleem" rel="me">LinkedIn</a> ·
-        <a href="https://bsky.app/profile/ok97.bsky.social" rel="me">Bluesky</a> ·
-        <a href="https://twitter.com/khayyamsaleem"     rel="me">Twitter</a> .
-        <a href="https://hachyderm.io/@khayyam"     rel="me">Mastodon</a>
+        <a href="https://github.com/khayyamsaleem" rel="me">GitHub</a> &middot;
+        <a href="mailto:hello@khayyam.me" rel="me">Email</a> &middot;
+        <a href="https://www.linkedin.com/in/khayyamsaleem" rel="me">LinkedIn</a> &middot;
+        <a href="https://bsky.app/profile/ok97.bsky.social" rel="me">Bluesky</a> &middot;
+        <a href="https://twitter.com/khayyamsaleem" rel="me">Twitter</a> &middot;
+        <a href="https://hachyderm.io/@khayyam" rel="me">Mastodon</a>
       </p>
-</footer>
-
     </footer>
 
-    <!-- Theme toggle script -->
     {{ $themeToggle := resources.Get "js/theme-toggle.js" | resources.Fingerprint }}
     <script src="{{ $themeToggle.RelPermalink }}"></script>
 
-    <!-- Twemoji: render all emoji in Twitter's flat style -->
     <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script>twemoji.parse(document.body, { folder: 'svg', ext: '.svg' });</script>
+    {{ $ansi := resources.Get "js/ansi.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
+    <script src="{{ $ansi.RelPermalink }}" defer></script>
+    {{ $toc := resources.Get "js/toc.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
+    <script src="{{ $toc.RelPermalink }}" defer></script>
   </body>
 </html>

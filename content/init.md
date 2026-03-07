@@ -1,5 +1,6 @@
 +++
 date = "20 Jun 2025"
+author = "khayyam"
 +++
 
 nuking and paving my blog to reflect my actual level of laziness + all the new tools that have come out.

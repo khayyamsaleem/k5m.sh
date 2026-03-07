@@ -1,0 +1,24 @@
+{
+  "name": "k5m.sh",
+  "version": "1.0.0",
+  "description": "new cheeky personal site, numeronym domain for nerds.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khayyamsaleem/k5m.sh.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/khayyamsaleem/k5m.sh/issues"
+  },
+  "homepage": "https://github.com/khayyamsaleem/k5m.sh#readme",
+  "dependencies": {
+    "ansi_up": "^6.0.6"
+  }
+}

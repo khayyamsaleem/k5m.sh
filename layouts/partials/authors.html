@@ -1,0 +1,23 @@
+{{- $keys := slice -}}
+{{- with .Params.authors -}}
+  {{- $keys = . -}}
+{{- else -}}
+  {{- with .Params.author -}}
+    {{- $keys = slice . -}}
+  {{- else -}}
+    {{- $keys = slice "khayyam" -}}
+  {{- end -}}
+{{- end -}}
+{{- $result := slice -}}
+{{- range $key := $keys -}}
+  {{- $entry := dict "key" $key "name" $key "avatar" "" "kind" "human" -}}
+  {{- with index $.Site.Params.authors.human $key -}}
+    {{- $entry = merge $entry (dict "name" (.name | default $key) "avatar" .avatar "kind" "human") -}}
+  {{- else -}}
+    {{- with index $.Site.Params.authors.ai $key -}}
+      {{- $entry = merge $entry (dict "name" (.name | default $key) "avatar" .avatar "kind" "ai") -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $result = $result | append $entry -}}
+{{- end -}}
+{{- return $result -}}

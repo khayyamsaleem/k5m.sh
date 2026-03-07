@@ -1,61 +1,125 @@
 {{ define "title" }}{{ .Site.Title }}{{ end }}
 
 {{ define "main" }}
-<p>{{ .Content }}</p>
-<table id="posts" style="width:100%">
-  <thead>
-    <tr>
-      <th>Title</th>
-      <th data-sort-key="created" style="cursor:pointer;">Created ▲▼</th>
-      <th data-sort-key="modified" style="cursor:pointer;">Modified ▲▼</th>
-    </tr>
-  </thead>
+<div class="intro">{{ .Content }}</div>
 
-  <tbody>
-    {{/*  default build order = newest first  */}}
-    {{ range .Site.RegularPages }}
-      <tr data-created="{{ .Date.Unix }}" data-modified="{{ .Lastmod.Unix }}">
-        <td><a href="{{ .RelPermalink }}">
-          {{- if (in .Params.tags "ai-generated") -}}
-            <span title="AI-generated">🤖</span>
-          {{- else -}}
-            <span title="Human-written">💙</span>
-          {{- end }} {{ with .Title -}}
-            {{ . | $.RenderString }}
-          {{- else -}}
-            {{ humanize .File.TranslationBaseName | lower | $.RenderString}}
-          {{- end -}}
-        </a></td>
-        <td>{{ with .Date }}{{ .Format "02 Jan 2006" }}{{ else }}{{ .Lastmod.Format "02 Jan 2006" }}{{ end }}</td>
-        <td>{{ .Lastmod.Format "02 Jan 2006" }}</td>
-      </tr>
+{{/* Collect unique authors at build time */}}
+{{ $allAuthors := dict }}
+{{ range .Site.RegularPages }}
+  {{ $authors := partial "authors.html" . }}
+  {{ range $authors }}{{ $allAuthors = merge $allAuthors (dict .key (dict "avatar" .avatar "name" .name)) }}{{ end }}
+{{ end }}
+
+<ul class="post-list" id="posts">
+  {{ range .Site.RegularPages }}
+    {{ $authors := partial "authors.html" . }}
+    <li class="post-item">
+      <a href="{{ .RelPermalink }}">
+        {{- with .Title -}}
+          {{ . | emojify }}
+        {{- else -}}
+          {{ humanize .File.TranslationBaseName | lower | emojify }}
+        {{- end -}}
+      </a>
+      <span class="post-indicators">
+        {{- range $authors }}
+        <span class="post-indicator" data-tooltip="{{ .name }}">
+          <img class="author-avatar" src="{{ .avatar }}" alt="{{ .name }}">
+        </span>
+        {{- end }}
+      </span>
+      <time class="post-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "02 Jan 2006" }}</time>
+    </li>
+  {{ end }}
+</ul>
+<button class="sort-btn" id="show-more" hidden></button>
+
+<div class="list-controls js-only">
+  <div class="sort-controls">
+    sort by:
+    <button class="sort-btn active" data-sort-key="created">created</button>
+    <button class="sort-btn" data-sort-key="modified">modified</button>
+  </div>
+  <div class="filter-controls">
+    filter:
+    <button class="filter-btn active" data-author="all" data-tooltip="all authors">all</button>
+    {{ range $key, $info := $allAuthors }}
+    <button class="filter-btn" data-author="{{ $key }}" data-tooltip="{{ $info.name }}">
+      <img class="author-avatar" src="{{ $info.avatar }}" alt="{{ $info.name }}">
+    </button>
     {{ end }}
-  </tbody>
-</table>
+  </div>
+</div>
 
 <script>
 (() => {
-  const table = document.getElementById('posts');
-  let currentKey = null, asc = false;   // track sort state
+  const list = document.getElementById('posts');
+  const showMoreBtn = document.getElementById('show-more');
+  const PAGE_SIZE = 10;
+  let posts = [], sortKey = 'created', asc = false, filterAuthor = 'all', showAll = false;
 
-  function sortRows(key) {
-    const rows = Array.from(table.tBodies[0].rows);
-    rows.sort((a, b) => {
-      const av = +a.dataset[key];
-      const bv = +b.dataset[key];
-      return asc ? av - bv : bv - av;
-    });
-    rows.forEach(r => table.tBodies[0].appendChild(r));
+  function render() {
+    const filtered = posts.filter(p =>
+      filterAuthor === 'all' || p.authors.some(a => a.key === filterAuthor)
+    );
+    filtered.sort((a, b) => asc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey]);
+
+    const dateKey = sortKey === 'modified' ? 'modifiedFmt' : 'createdFmt';
+    const isoKey = sortKey === 'modified' ? 'modifiedISO' : 'createdISO';
+    const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
+
+    list.innerHTML = visible.map(p => {
+      const indicators = p.authors.map(a =>
+        `<span class="post-indicator" data-tooltip="${a.name}">` +
+        `<img class="author-avatar" src="${a.avatar}" alt="${a.name}">` +
+        `</span>`
+      ).join('');
+      return `<li class="post-item">` +
+        `<a href="${p.href}">${p.title}</a>` +
+        `<span class="post-indicators">${indicators}</span>` +
+        `<time class="post-date" datetime="${p[isoKey]}">${p[dateKey]}</time>` +
+        `</li>`;
+    }).join('');
+
+    if (filtered.length > PAGE_SIZE && !showAll) {
+      showMoreBtn.textContent = `show all (${filtered.length})`;
+      showMoreBtn.hidden = false;
+    } else {
+      showMoreBtn.hidden = true;
+    }
+
+    if (typeof twemoji !== 'undefined') {
+      twemoji.parse(list, { folder: 'svg', ext: '.svg' });
+    }
   }
 
-  table.tHead.addEventListener('click', e => {
-    const th = e.target.closest('th[data-sort-key]');
-    if (!th) return;
-    const key = th.dataset.sortKey;
-    asc = currentKey === key ? !asc : false;  // toggle on repeat click
-    currentKey = key;
-    sortRows(key);
+  document.querySelectorAll('.sort-btn[data-sort-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.sortKey;
+      asc = sortKey === key ? !asc : false;
+      sortKey = key;
+      showAll = false;
+      document.querySelectorAll('.sort-btn[data-sort-key]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
   });
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterAuthor = btn.dataset.author;
+      showAll = false;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+
+  showMoreBtn.addEventListener('click', () => { showAll = true; render(); });
+
+  fetch('/index.json')
+    .then(r => r.json())
+    .then(data => { posts = data; render(); });
 })();
 </script>
 {{ end }}

@@ -1,129 +1,376 @@
-/* Light/Dark Mode Support for k5m.sh */
+/* k5m.sh — minimal flat theme */
+
+/* ---- Reset ---- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---- Variables ---- */
 
 :root {
-  /* Light mode colors (default for non-dark preference) */
-  --primary: #0066cc;
-  --background: #f5f5f5;
-  --surface: #f8f9fa;
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --border: #e0e0e0;
-  --link: #0066cc;
-  --link-hover: #0052a3;
-  --code-background: #f4f4f4;
-  --code-text: #d63384;
+  --primary: #2563eb;
+  --background: #fafafa;
+  --surface: #ffffff;
+  --text-primary: #1c1c1c;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --link: #2563eb;
+  --link-hover: #1d4ed8;
+  --code-background: #f3f4f6;
+  --code-text: #d946ef;
+  --accent-subtle: rgba(37, 99, 235, 0.08);
 }
 
 [data-theme="dark"] {
-  /* Dark mode colors (default on first load) */
-  --primary: #4d9cff;
-  --background: #11191f;
-  --surface: #1a2632;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --border: #2d3e50;
-  --link: #4d9cff;
-  --link-hover: #80b3ff;
-  --code-background: #0d1117;
-  --code-text: #79c0ff;
+  --primary: #60a5fa;
+  --background: #0e0e10;
+  --surface: #18181b;
+  --text-primary: #e4e4e7;
+  --text-secondary: #71717a;
+  --border: #27272a;
+  --link: #60a5fa;
+  --link-hover: #93bbfd;
+  --code-background: #1c1c1f;
+  --code-text: #c084fc;
+  --accent-subtle: rgba(96, 165, 250, 0.08);
 }
 
 [data-theme="light"] {
-  /* Explicit light mode override */
-  --primary: #0066cc;
-  --background: #f5f5f5;
-  --surface: #f8f9fa;
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --border: #e0e0e0;
-  --link: #0066cc;
-  --link-hover: #0052a3;
-  --code-background: #f4f4f4;
-  --code-text: #d63384;
+  --primary: #2563eb;
+  --background: #fafafa;
+  --surface: #ffffff;
+  --text-primary: #1c1c1c;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --link: #2563eb;
+  --link-hover: #1d4ed8;
+  --code-background: #f3f4f6;
+  --code-text: #d946ef;
+  --accent-subtle: rgba(37, 99, 235, 0.08);
 }
 
-/* Apply theme colors to all elements */
+/* ---- Base ---- */
+
 html, body {
   background-color: var(--background);
   color: var(--text-primary);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--text-primary);
+  font-family: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.7;
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
 }
 
-/* Ensure main content area is themed */
 main, article, section {
   background-color: var(--background);
   color: var(--text-primary);
 }
 
-/* Blog content area styling */
-.blog-content, article {
-  background-color: var(--background);
+/* ---- Typography ---- */
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+ul, ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+li {
+  margin-bottom: 0.25rem;
+}
+
+li > ul, li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ---- Links ---- */
+
+a {
+  color: var(--link);
+  text-decoration-color: transparent;
+  text-underline-offset: 0.15em;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+a:hover, a:active, a:focus {
+  color: var(--link-hover);
+  text-decoration-color: var(--link-hover);
+}
+
+/* ---- Site header ---- */
+
+.site-header {
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.site-header h1 a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.site-header h1 a:hover {
+  color: var(--primary);
+}
+
+/* ---- Post list (homepage) ---- */
+
+.intro {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+}
+
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-item {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.post-item:first-child {
+  border-top: 1px solid var(--border);
+}
+
+.post-item a {
+  font-weight: 500;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.post-item a:hover {
+  color: var(--link-hover);
+  text-decoration-color: var(--link-hover);
+  text-decoration: underline;
+}
+
+.post-date {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* List controls — below the list, subtle */
+.list-controls {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.sort-controls,
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sort-btn,
+.filter-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: inherit;
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.sort-btn:hover,
+.filter-btn:hover {
   color: var(--text-primary);
 }
 
-/* Code blocks - ensure they're themed */
-code, pre {
+.sort-btn.active,
+.filter-btn.active {
+  color: var(--primary);
+  background-color: var(--accent-subtle);
+}
+
+.filter-btn {
+  padding: 0.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.filter-btn .author-avatar {
+  width: 1.1rem;
+  height: 1.1rem;
+  opacity: 0.5;
+  filter: grayscale(0.3);
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.filter-btn:hover .author-avatar,
+.filter-btn.active .author-avatar {
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+/* Show more button */
+#show-more {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+/* ---- Article (single post) ---- */
+
+article h1 {
+  font-size: 1.75rem;
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
+article h2 {
+  margin-top: 2.5rem;
+}
+
+article h3 {
+  margin-top: 1.75rem;
+}
+
+.post-meta {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
+}
+
+/* ---- Code ---- */
+
+code {
   background-color: var(--code-background);
   color: var(--code-text);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.88em;
 }
 
 pre {
   background-color: var(--code-background);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  padding: 1rem;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
   overflow-x: auto;
-}
-
-code {
-  background-color: var(--code-background);
-  color: var(--code-text);
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
 }
 
 pre code {
   background-color: transparent;
   color: inherit;
   padding: 0;
+  font-size: inherit;
 }
 
-/* Links */
-a {
-  color: var(--link);
+pre.ansi {
+  background-color: #0e0e10;
+  color: #d0d0d0;
+  line-height: 1.3;
 }
 
-a:hover, a:active, a:focus {
-  color: var(--link-hover);
+/* ---- Blockquote ---- */
+
+blockquote {
+  border-left: 3px solid var(--primary);
+  color: var(--text-secondary);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  font-style: italic;
 }
 
-/* Tables */
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Tables ---- */
+
 table {
   border-color: var(--border);
   background-color: var(--background);
   color: var(--text-primary);
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
 }
 
 th, td {
   border-color: var(--border);
   background-color: var(--background);
   color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
 }
 
 thead {
   background-color: var(--surface);
 }
 
-/* Headings */
-h1, h2, h3, h4, h5, h6 {
-  color: var(--text-primary);
+th {
+  background-color: var(--surface);
+  font-weight: 600;
+  text-align: left;
 }
 
-/* Form elements */
+/* ---- HR ---- */
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* ---- Form elements ---- */
+
 input, textarea, select, optgroup {
   background-color: var(--surface);
   color: var(--text-primary);
@@ -135,63 +382,78 @@ input:focus, textarea:focus, select:focus {
   background-color: var(--background);
 }
 
-/* Blockquotes */
-blockquote {
-  border-left-color: var(--border);
-  color: var(--text-secondary);
-}
+/* ---- Theme toggle ---- */
 
-/* HR */
-hr {
-  border-color: var(--border);
-}
-
-/* Theme toggle button */
 #theme-toggle {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.5rem 1rem;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-primary);
-  border-radius: 0.25rem;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1rem;
   z-index: 1000;
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 #theme-toggle:hover {
   transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--text-secondary);
 }
 
-/* Smooth transitions for all theme-aware elements */
-html, body, main, article, section, a, table, th, td, code, pre, input, textarea, select, blockquote, hr, #theme-toggle {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+/* ---- Footer ---- */
+
+.site-footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
 }
 
-/* Social links styling */
+.site-footer p {
+  margin-bottom: 0.25rem;
+}
+
+.site-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--text-primary);
+}
+
 .socials {
-  font-size: 0.9rem;
-  word-spacing: 0.15rem;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  word-spacing: 0.1rem;
 }
 
 .socials a {
   text-decoration: none;
-  color: var(--link);
+  color: var(--text-secondary);
 }
 
 .socials a:hover {
-  text-decoration: underline;
-  color: var(--link-hover);
+  color: var(--text-primary);
 }
 
-/* -----------------------------------------------
-   Media display: center images, videos, iframes
-   and constrain to a readable max-width
-   ----------------------------------------------- */
+/* ---- Smooth transitions ---- */
+
+html, body, main, article, section, a, code, pre, blockquote, hr, #theme-toggle {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ---- Media ---- */
 
 article img,
 article video,
@@ -201,9 +463,9 @@ article iframe {
   margin-right: auto;
   max-width: 100%;
   height: auto;
+  border-radius: 6px;
 }
 
-/* Give embedded maps a sensible aspect ratio and full article width */
 article iframe {
   width: 100%;
   max-width: 720px;
@@ -211,20 +473,20 @@ article iframe {
   height: auto;
 }
 
-/* Cap videos at a comfortable reading width */
 article video {
   max-width: 720px;
   width: 100%;
 }
 
-/* Heading anchor links */
+/* ---- Heading anchor links ---- */
+
 .heading-anchor {
   text-decoration: none;
   color: var(--text-secondary);
   opacity: 0;
   font-weight: normal;
   margin-left: 0.3em;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
 }
 
 h1:hover .heading-anchor,
@@ -233,14 +495,278 @@ h3:hover .heading-anchor,
 h4:hover .heading-anchor,
 h5:hover .heading-anchor,
 h6:hover .heading-anchor {
-  opacity: 1;
+  opacity: 0.5;
 }
 
-/* Twemoji inline sizing */
+.heading-anchor:hover {
+  opacity: 1 !important;
+}
+
+/* ---- Post indicator (emoji on hover, right of title) ---- */
+
+/* Shared tooltip base */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.5rem;
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease 0.1s;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+/* Author avatar (shared) */
+.author-avatar {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-block;
+}
+
+/* List post indicators (container) */
+.post-indicators {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  margin-right: 0.25rem;
+}
+
+.post-indicator {
+  opacity: 0;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+  filter: grayscale(0.3);
+  cursor: default;
+}
+
+.post-item:hover .post-indicator,
+.post-item a:focus ~ .post-indicators .post-indicator {
+  opacity: 0.6;
+}
+
+.post-indicator:hover {
+  opacity: 1 !important;
+  filter: grayscale(0);
+}
+
+/* Article page — fixed position badges */
+.post-badges {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 999;
+}
+
+.post-badge {
+  opacity: 0.4;
+  filter: grayscale(0.2);
+  cursor: default;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.post-badge .author-avatar {
+  width: 2rem;
+  height: 2rem;
+}
+
+.post-badge:hover {
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+.post-badge::after {
+  bottom: auto;
+  top: 50%;
+  right: 100%;
+  left: auto;
+  transform: translateY(-50%);
+  margin-right: 0.5rem;
+}
+
+/* ---- AI disclaimer callout ---- */
+
+.ai-disclaimer {
+  background-color: var(--accent-subtle);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 2rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ---- Twemoji ---- */
+
 img.emoji {
   height: 1.2em;
   width: 1.2em;
   margin: 0 0.05em 0 0.1em;
   vertical-align: -0.2em;
   display: inline;
+}
+
+/* ---- Table of contents ---- */
+
+/* Shared TOC styles */
+.toc details {
+  margin: 0;
+}
+
+.toc-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem 0;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.toc-title::-webkit-details-marker {
+  display: none;
+}
+
+.toc details:not([open]) .toc-title::after {
+  content: " …";
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc li {
+  margin-bottom: 0;
+}
+
+.toc li li {
+  padding-left: 0.75rem;
+}
+
+.toc a {
+  display: block;
+  padding: 0.15rem 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.toc a:hover {
+  color: var(--text-primary);
+}
+
+.toc a.active {
+  color: var(--primary);
+  border-left-color: var(--primary);
+}
+
+/* Inline TOC (default / narrow screens) */
+.toc {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 2rem;
+}
+
+/* Floating TOC on wide screens */
+@media (min-width: 80rem) {
+  .toc {
+    position: fixed;
+    top: 4rem;
+    right: calc((100vw - 50rem) / 2 - 16rem);
+    width: 14rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    font-size: 0.75rem;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0;
+  }
+}
+
+/* ---- No-JS fallbacks ---- */
+
+/* Show JS-only controls only when JS is available */
+.js-only {
+  display: none;
+}
+
+html.js .js-only {
+  display: flex;
+}
+
+/* Hide raw ANSI escape codes without JS, show message instead */
+html.no-js pre.ansi {
+  overflow: hidden;
+  height: auto;
+  max-height: 2.5rem;
+  color: transparent;
+}
+
+html.no-js pre.ansi::before {
+  content: "Enable JavaScript to view the colored terminal art.";
+  display: block;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 640px) {
+  body {
+    padding: 1.25rem 1rem;
+  }
+
+  .post-item {
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 0;
+  }
+
+  .post-indicator {
+    position: static;
+    display: inline-block;
+    width: 1.2em;
+  }
+
+  .post-date {
+    font-size: 0.78rem;
+  }
+
+  article h1 {
+    font-size: 1.4rem;
+  }
 }
