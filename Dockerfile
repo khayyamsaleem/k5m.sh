@@ -1,17 +1,17 @@
-FROM golang:alpine
+FROM alpine:3.21
 
-ENV HUGO_VERSION 0.157.0
+ENV HUGO_VERSION=0.157.0
 
-WORKDIR /tmp
-RUN apk update && apk upgrade && apk add --no-cache curl tar git nodejs npm && \
-    curl -L https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz > \
-    hugo.tar.gz && \
-    tar -zxvf hugo.tar.gz && \
-    mv ./hugo /bin/hugo && \
-    rm -rf /tmp
+RUN apk add --no-cache curl tar git nodejs npm libc6-compat libstdc++ && \
+    curl -L https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz | \
+    tar -xz -C /usr/local/bin hugo && \
+    rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
-ADD . /app
+COPY package.json package-lock.json ./
+RUN npm ci --production
 
-RUN npm ci && hugo
+COPY . .
+
+RUN hugo
