@@ -32,7 +32,7 @@ Here is what the old setup looked like:
 - **Zero monitoring.** No metrics collection, no dashboards, no alerting. If something broke, I SSHed in and ran `docker logs`.
 - **Dead apps cluttering the config** -- a Gitea instance I was not using anymore, sitting there consuming resources.
 - **No dedicated storage volume** -- all persistent data (Jenkins home, Elasticsearch indices, TLS certs) lived on the droplet's root disk with no backup strategy.
-- **The VPN setup for torrenting used hardcoded WireGuard server addresses** that would go stale when NordVPN rotated endpoints.
+- **The VPN setup for torrenting used hardcoded WireGuard server addresses** that would go stale when Mullvad rotated endpoints.
 - **Credentials were scattered everywhere** -- some in compose files, some in `.env`, some just hardcoded inline.
 - **Traefik used DigitalOcean DNS** for certificate challenges before I moved DNS to Cloudflare.
 
@@ -55,7 +55,7 @@ Here is what changed:
 - **De-privileged Jenkins** -- removed root and privileged mode, added `group_add` for Docker socket access, fixed volume ownership.
 - **Added an OTel Collector sidecar** for Jenkins metrics -- instead of VictoriaMetrics scraping Jenkins with hardcoded credentials, the OTel Collector scrapes Jenkins locally and pushes to VictoriaMetrics' OTLP endpoint. The collector acts as a credential boundary.
 - **Fixed Promtail parsing** -- replaced broken `logfmt` stages with regex-based level extraction for Go slog services.
-- **Switched Gluetun to the NordVPN provider** -- no more manually configured WireGuard endpoints. Gluetun auto-selects the best server.
+- **Switched Gluetun to the Mullvad provider** -- no more manually configured WireGuard endpoints. Gluetun auto-selects the best server.
 - **Tested MagicDNS** inside containers (it does not work with `TS_USERSPACE=true`), and solved it with `extra_hosts` and environment variables instead.
 
 The whole thing is open source: 📦 **[khayyamsaleem/server](https://github.com/khayyamsaleem/server)**
@@ -198,7 +198,7 @@ Cherryblossom handles all media duties. **Jellyfin** runs with access to attache
 
 I also run a **jellyfin-exporter** to get playback and library metrics into VictoriaMetrics. It is not critical, but it is satisfying to see library growth and playback stats on a Grafana dashboard.
 
-For downloading, **Transmission** runs behind **Gluetun**, which establishes a WireGuard tunnel to NordVPN. All torrent traffic goes through the VPN tunnel. If the VPN drops, Gluetun kills the network for the Transmission container, so nothing leaks. The web interface is **Flood UI**, which is a much more pleasant experience than the default Transmission web client.
+For downloading, **Transmission** runs behind **Gluetun**, which establishes a WireGuard tunnel to Mullvad. All torrent traffic goes through the VPN tunnel. If the VPN drops, Gluetun kills the network for the Transmission container, so nothing leaks. The web interface is **Flood UI**, which is a much more pleasant experience than the default Transmission web client.
 
 Transmission is also exposed through juul at `transmission.khayyam.me`, again proxied over Tailscale. So I can manage downloads from anywhere without needing to be on my home network.
 
@@ -222,7 +222,7 @@ Every secret -- API keys, database passwords, VPN credentials, Cloudflare tokens
 
 This is simple and it works. I have seen people reach for Vault or SOPS or sealed secrets for homelab setups, and while those tools are great, a `.env` file with proper file permissions and a `.gitignore` entry gets you 90% of the way there with none of the operational complexity. The threat model for a homelab is not the same as a production SaaS application.
 
-Each node has its own `.env` file with the secrets relevant to that node. Cherryblossom has the NordVPN WireGuard private key, the Jellyfin configuration, and the Ollama settings. Juul has the Cloudflare API token, the Jenkins admin password, and the Grafana credentials.
+Each node has its own `.env` file with the secrets relevant to that node. Cherryblossom has the Mullvad WireGuard private key, the Jellyfin configuration, and the Ollama settings. Juul has the Cloudflare API token, the Jenkins admin password, and the Grafana credentials.
 
 ## 📁 Compose organization
 
@@ -236,7 +236,7 @@ On **juul**:
 
 On **cherryblossom**:
 - `media` -- Jellyfin, jellyfin-exporter
-- `torrenting` -- Gluetun (NordVPN WireGuard), Transmission with Flood UI
+- `torrenting` -- Gluetun (Mullvad WireGuard), Transmission with Flood UI
 - `ai` -- Ollama (GPU), PicoClaw gateway, Envoy metrics proxy
 - `monitoring` -- node-exporter, cAdvisor, Promtail (ships to Loki on juul)
 - `infra` -- Tailscale container (overlay network), Watchtower for automatic image updates
