@@ -44,5 +44,7 @@
     <script src="{{ $toc.RelPermalink }}" defer></script>
     {{ $lightbox := resources.Get "js/lightbox.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
     <script src="{{ $lightbox.RelPermalink }}" defer></script>
+    {{ $mapsPreview := resources.Get "js/maps-preview.js" | js.Build (dict "minify" true) | resources.Fingerprint }}
+    <script src="{{ $mapsPreview.RelPermalink }}" defer></script>
   </body>
 </html>

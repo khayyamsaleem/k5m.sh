@@ -1,0 +1,56 @@
+{{- $url := .Destination -}}
+{{- $isMaps := or (findRE `google\.com/maps` $url) (findRE `maps\.app\.goo\.gl` $url) (findRE `goo\.gl/maps` $url) (findRE `maps\.google\.com` $url) -}}
+{{- if $isMaps -}}
+  {{- $query := "" -}}
+  {{- $coords := "" -}}
+  {{- /* For short URLs, resolve the redirect to extract place info */ -}}
+  {{- $isShort := or (findRE `maps\.app\.goo\.gl` $url) (findRE `goo\.gl/maps` $url) -}}
+  {{- if $isShort -}}
+    {{- $result := try (resources.GetRemote $url) -}}
+    {{- with $result.Value -}}
+      {{- $body := .Content -}}
+      {{- /* Body contains URL-encoded paths like maps/place/Buna/%4038.70,-9.15,16z/... */ -}}
+      {{- with findRE `maps/place/([^/]+)/%40` $body -}}
+        {{- $match := index . 0 -}}
+        {{- $query = replaceRE `^maps/place/` "" $match -}}
+        {{- $query = replaceRE `/%40$` "" $query -}}
+      {{- end -}}
+      {{- /* Extract coordinates: %40LAT,LNG or @LAT,LNG */ -}}
+      {{- with findRE `%40(-?[\d.]+),(-?[\d.]+)` $body -}}
+        {{- $match := index . 0 -}}
+        {{- $coords = replaceRE `^%40` "" $match -}}
+      {{- end -}}
+    {{- end -}}
+  {{- else -}}
+    {{- /* Direct Google Maps URL — extract place/search name */ -}}
+    {{- with findRE `/maps/place/([^/@]+)` $url -}}
+      {{- $match := index . 0 -}}
+      {{- $query = replaceRE `^/maps/place/` "" $match -}}
+    {{- end -}}
+    {{- if not $query -}}
+      {{- with findRE `/maps/search/([^/@]+)` $url -}}
+        {{- $match := index . 0 -}}
+        {{- $query = replaceRE `^/maps/search/` "" $match -}}
+      {{- end -}}
+    {{- end -}}
+    {{- /* Extract coordinates from direct URL */ -}}
+    {{- with findRE `@(-?[\d.]+),(-?[\d.]+)` $url -}}
+      {{- $coords = replaceRE `^@` "" (index . 0) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $query -}}
+    {{- /* Last resort: link text + page title for disambiguation */ -}}
+    {{- $text := .Text | plainify -}}
+    {{- $pageTitle := .Page.Title | replaceRE `\s*[-–—]\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4}` "" -}}
+    {{- $query = printf "%s, %s" $text $pageTitle -}}
+  {{- end -}}
+  <a href="{{ $url | safeURL }}"
+     {{ with .Title }}title="{{ . }}"{{ end }}
+     class="maps-link"
+     data-maps-query="{{ $query }}"
+     {{ with $coords }}data-maps-coords="{{ . }}"{{ end }}
+     target="_blank"
+     rel="noopener">{{ .Text }}</a>
+{{- else -}}
+  <a href="{{ $url | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>
+{{- end -}}
