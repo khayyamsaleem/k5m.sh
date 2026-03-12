@@ -25,8 +25,9 @@ jobs:
         run: npm ci
 
       - name: Setup Hugo
-        uses: gohugoio/setup-hugo@v1
+        uses: peaceiris/actions-hugo@v3
         with:
+          hugo-version: 'latest'
           extended: true
 
       - name: Build site
