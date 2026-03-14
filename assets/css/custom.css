@@ -175,6 +175,10 @@ a:hover, a:active, a:focus {
   transition: padding 0.25s ease;
 }
 
+.post-item > .post-indicators {
+  overflow: visible;
+}
+
 .post-item.post-hidden {
   grid-template-rows: 0fr;
   opacity: 0;
