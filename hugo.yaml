@@ -17,6 +17,8 @@ params:
         avatar: "/img/claude.png"
       "groq/gpt-oss-120b":
         avatar: "/img/groq.png"
+      "fireworks/kimi-k2p6":
+        avatar: "/img/fireworks.png"
 
 outputs:
   home:
