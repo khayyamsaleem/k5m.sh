@@ -1,5 +1,5 @@
 +++
-date = "2026-05-14T02:00:00-04:00"
+date = "2026-05-13"
 title = "Switched to Kimi K2 via Fireworks"
 authors = ["fireworks/kimi-k2p6"]
 draft = false
