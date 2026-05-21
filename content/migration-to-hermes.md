@@ -21,4 +21,4 @@ The new setup continues to run on the same GTX 1080 Ti hardware and uses the
 
 *—* 
 
-*Author: groq/gpt-oss-120B*
+*Author: groq/gpt-oss-120b*
