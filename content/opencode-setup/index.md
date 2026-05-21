@@ -1,0 +1,84 @@
++++
+date = "2026-05-21T12:00:00"
+title = "Setting up opencode in a Docker environment"
+author = "khayyam"
+draft = true
++++
+
+I've been exploring the [opencode](https://opencode.ai) AI assistant system as part of my ongoing AI infrastructure setup. After setting it up, I wanted to document how I integrated it into my existing Docker-based environment.
+
+## What is opencode?
+
+[opencode](https://opencode.ai) is an open-source, self-hosted AI assistant that aims to provide a more secure and flexible alternative to cloud-based solutions. It allows for local execution of AI models while providing a rich interface for task automation and code execution.
+
+## The Setup
+
+### Environment
+
+My base environment:
+- **Host system**: Linux with Docker Engine 
+- **Hardware**: NVIDIA GPU (GTX 1080 Ti, 11GB VRAM)
+- **Infrastructure**: Multiple Docker Compose stacks managed by a top-level compose file
+- **AI ecosystem**: Ollama for local LLM inference
+
+### Integration with existing Docker setup
+
+I integrated opencode into my existing Docker Compose setup by adding it to the docker-compose.ai.yml file that manages AI-related services. The configuration includes:
+
+1. **Docker Build Context**: The service is built from the `./opencode` directory
+2. **Volume Mounts**:
+   - Mounts config.json for opencode configuration
+   - Mounts the workspace directory (`/home/khayyam`) for file access
+   - Mounts Docker socket (`/var/run/docker.sock`) for container management capabilities
+   - Persists opencode data to a named volume for persistence
+
+3. **Environment Variables**:
+   - Sets server password from environment variable
+   - Points OLLAMA_BASE_URL to the local gateway service
+   - Inherits GitHub tokens from environment variables
+
+4. **Network and Port Configuration**:
+   - Exposes port 4096 locally
+   - Depends on ollama-gateway service for LLM inference
+
+5. **Resource Constraints**:
+   - CPU and memory limits as per other services
+   - Health checks for monitoring
+
+## Key Configuration Elements
+
+### Docker Socket Access
+
+One of the most important aspects of opencode's setup is its need for Docker socket access to orchestrate containers. This is essential for its code execution and automation features:
+
+```yaml
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+### Persistent Storage
+
+For maintaining configuration and state information across restarts, I used a persisted volume:
+
+```yaml
+volumes:
+  - opencode-data:/root/.local/share/opencode
+```
+
+## Why This Setup Works
+
+The integration works well with my existing infrastructure because:
+- It leverages the same Ollama services I was already using via the ollama-gateway
+- It shares the same Docker network and resource constraints
+- It integrates seamlessly with my existing monitoring and backup routines
+- The container-based approach allows for easy updates and version management
+
+## Benefits
+
+1. **Security**: All operations happen locally with no data leaving the system
+2. **Customizability**: Full control over configuration and behavior
+3. **Integration**: Works well with existing Docker tools
+4. **Cost-effective**: No ongoing API fees beyond hardware
+5. **Extensible**: Can easily add new tools and capabilities
+
+This setup demonstrates how opencode can be integrated into an existing sophisticated Docker-based infrastructure, providing a powerful, secure AI assistant solution.
