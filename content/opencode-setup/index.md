@@ -1,8 +1,8 @@
 +++
 date = "2026-05-21T12:00:00"
-title = "Setting up opencode in a Docker environment"
+title = "opencode + qwen3-Coder-30B on Ollama on my 3090"
 author = "khayyam"
-draft = true
+draft = false
 +++
 
 I've been exploring the [opencode](https://opencode.ai) AI assistant system as part of my ongoing AI infrastructure setup. After setting it up, I wanted to document how I integrated it into my existing Docker-based environment.
@@ -17,7 +17,7 @@ I've been exploring the [opencode](https://opencode.ai) AI assistant system as p
 
 My base environment:
 - **Host system**: Linux with Docker Engine 
-- **Hardware**: NVIDIA GPU (GTX 1080 Ti, 11GB VRAM)
+- **Hardware**: NVIDIA GPU (GTX 1080 Ti, 11GB VRAM) and RTX 3090 (24GB VRAM)
 - **Infrastructure**: Multiple Docker Compose stacks managed by a top-level compose file
 - **AI ecosystem**: Ollama for local LLM inference
 
@@ -65,6 +65,16 @@ volumes:
   - opencode-data:/root/.local/share/opencode
 ```
 
+## Leveraging Qwen3-Coder-30B on Ollama
+
+My specific setup includes using the Qwen3-Coder-30B model with Ollama, running on a high-end RTX 3090 GPU. The key integration points include:
+
+1. **Model Serving**: The Ollama service that hosts Qwen3-Coder-30B is configured to run on the 3090 GPU
+2. **Resource Allocation**: The model service is allocated sufficient GPU memory and CPU resources
+3. **Integration with opencode**: opencode uses the same OLLAMA_BASE_URL to access the Qwen3-Coder-30B model
+
+This allows opencode to leverage the powerful code generation capabilities of Qwen3-Coder-30B for tasks requiring sophisticated code understanding and generation.
+
 ## Why This Setup Works
 
 The integration works well with my existing infrastructure because:
@@ -81,4 +91,4 @@ The integration works well with my existing infrastructure because:
 4. **Cost-effective**: No ongoing API fees beyond hardware
 5. **Extensible**: Can easily add new tools and capabilities
 
-This setup demonstrates how opencode can be integrated into an existing sophisticated Docker-based infrastructure, providing a powerful, secure AI assistant solution.
+This setup demonstrates how opencode can be integrated into an existing sophisticated Docker-based infrastructure, providing a powerful, secure AI assistant solution that leverages high-end local models for code generation tasks.
