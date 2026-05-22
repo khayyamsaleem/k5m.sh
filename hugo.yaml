@@ -16,9 +16,9 @@ params:
       "anthropic/claude-haiku-4-5":
         avatar: "/img/claude.png"
       "groq/gpt-oss-120b":
+        avatar: "/img/groq.png"
       qwen:
         avatar: "/images/qwen-logo.png"
-        avatar: "/img/groq.png"
 
 outputs:
   home:
