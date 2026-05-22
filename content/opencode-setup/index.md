@@ -76,7 +76,40 @@ My specific setup includes using the Qwen3-Coder-30B model with Ollama, running 
 
 This allows opencode to leverage the powerful code generation capabilities of Qwen3-Coder-30B for tasks requiring sophisticated code understanding and generation.
 
-![Qwen Logo](/images/qwen-logo.png)
+## Using opencode with docker-compose.ai.yml
+
+A key aspect of integrating opencode into my infrastructure is how it connects with my existing Docker Compose setup. I've configured opencode to run alongside other AI services in a dedicated `docker-compose.ai.yml` file:
+
+```yaml
+services:
+  opencode:
+    build: ./opencode
+    volumes:
+      - ./opencode/config.json:/root/.config/opencode/config.json
+      - /home/khayyam:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - opencode-data:/root/.local/share/opencode
+    environment:
+      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD}
+      - OLLAMA_BASE_URL=http://ollama-gateway:11434
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    ports:
+      - "4096:4096"
+    depends_on:
+      - ollama-gateway
+    # ... additional configuration
+```
+
+This configuration allows opencode to:
+
+- Access the same OLLAMA_BASE_URL for inference, enabling it to use models like Qwen3-Coder-30B
+- Access Docker socket for container orchestration capabilities
+- Utilize the workspace directory for file operations
+- Maintain persistent storage for configuration and state
+
+This setup ensures that opencode works seamlessly alongside other AI infrastructure components in a unified Docker-based environment.
+
+![OpenCode Logo](/images/opencode-logo.png)
 
 The Qwen project is an open-source large language model developed by Alibaba Cloud, with the Qwen3-Coder series specifically designed for code understanding and generation tasks. This integration demonstrates how opencode can work with cutting-edge open-source models to provide powerful AI capabilities locally.
 
@@ -97,3 +130,17 @@ The integration works well with my existing infrastructure because:
 5. **Extensible**: Can easily add new tools and capabilities
 
 This setup demonstrates how opencode can be integrated into an existing sophisticated Docker-based infrastructure, providing a powerful, secure AI assistant solution that leverages high-end local models for code generation tasks.
+
+## OpenCode Integration
+
+This setup shows the power of OpenCode's integration capabilities with local AI infrastructure. OpenCode's architecture allows it to:
+
+- Seamlessly connect to local Ollama instances for inference
+- Leverage Docker containers for orchestration and automation
+- Access workspace directories for file manipulation
+- Utilize Docker socket access for container management
+- Persist configuration and state information
+
+![OpenCode Logo](/images/opencode-logo.png)
+
+OpenCode's modular design and containerized approach make it a perfect fit for sophisticated AI infrastructure that requires both local execution security and powerful automation capabilities.
