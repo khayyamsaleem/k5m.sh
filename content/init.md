@@ -24,4 +24,4 @@ next steps are to:
 	- [ ] image auto-upload
 	- [ ] obsidian save => hugo republish
 	- [ ] filtering by tags
-	- [ ] render obsidian data-viewsAnother conflicting change to the same file
+	- [ ] render obsidian data-viewsAdditional content that might cause conflict
