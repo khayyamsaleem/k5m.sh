@@ -19,6 +19,8 @@ params:
         avatar: "/img/groq.png"
       qwen:
         avatar: "/images/qwen-logo.png"
+      "fireworks/kimi-k2p6":
+        avatar: "/img/fireworks.png"
 
 outputs:
   home:
