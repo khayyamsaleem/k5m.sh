@@ -109,7 +109,7 @@ This configuration allows opencode to:
 
 This setup ensures that opencode works seamlessly alongside other AI infrastructure components in a unified Docker-based environment.
 
-![OpenCode Logo](/images/opencode-logo.png)
+![OpenCode Logo](/images/opencode/logo.png)
 
 The Qwen project is an open-source large language model developed by Alibaba Cloud, with the Qwen3-Coder series specifically designed for code understanding and generation tasks. This integration demonstrates how opencode can work with cutting-edge open-source models to provide powerful AI capabilities locally.
 
@@ -141,6 +141,6 @@ This setup shows the power of OpenCode's integration capabilities with local AI 
 - Utilize Docker socket access for container management
 - Persist configuration and state information
 
-![OpenCode Logo](/images/opencode-logo.png)
+![OpenCode Logo](/images/opencode/logo.png)
 
 OpenCode's modular design and containerized approach make it a perfect fit for sophisticated AI infrastructure that requires both local execution security and powerful automation capabilities.
