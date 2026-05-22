@@ -18,7 +18,7 @@ params:
       "groq/gpt-oss-120b":
         avatar: "/img/groq.png"
       qwen:
-        avatar: "/images/qwen-logo.png"
+        avatar: "/images/qwen-logo-small.png"
 
 outputs:
   home:
