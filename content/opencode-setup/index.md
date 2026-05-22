@@ -1,6 +1,6 @@
 +++
 date = "2026-05-21T12:00:00"
-title = "opencode + qwen3-Coder-30B on Ollama on my 3090"
+title = "opencode + qwen3-Coder-30B on Ollama + OpenCode on my 3090"
 author = "khayyam"
 coauthors = ["qwen"]
 draft = false
