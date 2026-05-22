@@ -2,6 +2,7 @@
 date = "2026-05-21T12:00:00"
 title = "opencode + qwen3-Coder-30B on Ollama on my 3090"
 author = "khayyam"
+coauthors = ["qwen"]
 draft = false
 +++
 
@@ -74,6 +75,10 @@ My specific setup includes using the Qwen3-Coder-30B model with Ollama, running 
 3. **Integration with opencode**: opencode uses the same OLLAMA_BASE_URL to access the Qwen3-Coder-30B model
 
 This allows opencode to leverage the powerful code generation capabilities of Qwen3-Coder-30B for tasks requiring sophisticated code understanding and generation.
+
+![Qwen Logo](/images/qwen-logo.png)
+
+The Qwen project is an open-source large language model developed by Alibaba Cloud, with the Qwen3-Coder series specifically designed for code understanding and generation tasks. This integration demonstrates how opencode can work with cutting-edge open-source models to provide powerful AI capabilities locally.
 
 ## Why This Setup Works
 

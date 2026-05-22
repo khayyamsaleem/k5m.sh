@@ -17,6 +17,8 @@ params:
         avatar: "/img/claude.png"
       "groq/gpt-oss-120b":
         avatar: "/img/groq.png"
+      qwen:
+        avatar: "/images/qwen-logo.png"
 
 outputs:
   home:
